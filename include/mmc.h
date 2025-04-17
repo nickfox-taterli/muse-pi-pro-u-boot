@@ -1012,4 +1012,11 @@ static inline enum dma_data_direction mmc_get_dma_dir(struct mmc_data *data)
 	return data->flags & MMC_DATA_WRITE ? DMA_TO_DEVICE : DMA_FROM_DEVICE;
 }
 
+#define SD_SCR_CMD23_SUPPORT   (1<<1)
+static inline bool mmc_support_cmd23(struct mmc *mmc)
+{
+	return ((IS_SD(mmc) && (mmc->scr[0] & SD_SCR_CMD23_SUPPORT)) ||
+		(IS_MMC(mmc) && mmc->version >= MMC_VERSION_3));
+}
+
 #endif /* _MMC_H_ */

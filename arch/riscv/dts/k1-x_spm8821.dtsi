@@ -50,6 +50,7 @@
 				regulator-name = "dcdc4";
 				regulator-min-microvolt = <500000>;
 				regulator-max-microvolt = <3450000>;
+				regulator-always-on;
 				regulator-state-mem {
 					regulator-off-in-suspend;
 				};

@@ -502,6 +502,8 @@ static void spacemit_sdhci_set_control_reg(struct sdhci_host *host)
 #ifdef CONFIG_PINCTRL
 	if (mmc->clock >= 200000000)
 		pinctrl_select_state(mmc->dev, "fast");
+	else if (mmc->bus_width < 4)
+		pinctrl_select_state(mmc->dev, "debug");
 	else
 		pinctrl_select_state(mmc->dev, "default");
 #endif
@@ -948,7 +950,9 @@ static int spacemit_sdhci_probe(struct udevice *dev)
 
 	/* emmc phy bypass if need */
 	spacemit_mmc_phy_init(host);
-
+#ifdef CONFIG_PINCTRL
+	pinctrl_select_state(host->mmc->dev, "debug");
+#endif
 	pr_info("%s: probe done.\n", host->name);
 	return ret;
 }

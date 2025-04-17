@@ -102,6 +102,7 @@ enum DCLK_BYPASS_sel {
 #define FREQ_MAX		~(0U)
 
 u32 ddr_cs_num = DDR_CS_NUM;
+__section(".data") u32 ddr_size;
 const char *ddr_type;
 
 static u32 mode_register_read(u32 MR, u32 CH, u32 CS)
@@ -193,9 +194,13 @@ static inline u32 map_format_size(u32 val)
 
 u32 ddr_get_density(void)
 {
-	u32 ddr_size = 0;
 	u32 cs0_size = 0;
 	u32 cs1_size = 0;
+
+	// NO need to read from hardware repeatedly
+	if (ddr_size)
+		return ddr_size;
+
 #ifdef CONFIG_SPL_BUILD
 	u32 mr8_cs00, mr8_cs01, mr8_cs10, mr8_cs11;
 	u32 io_width_cs00, io_width_cs01, io_width_cs10, io_width_cs11;

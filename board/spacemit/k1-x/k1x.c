@@ -51,14 +51,18 @@ struct fastboot_key_config {
 };
 #endif
 
+extern int get_tlvinfo(uint8_t id, uint8_t *buffer, int max_size);
+extern int set_tlvinfo(int tcode, char* val);
+extern int flush_tlvinfo(void);
+extern int update_tlvinfo(void);
+
 DECLARE_GLOBAL_DATA_PTR;
 static char found_partition[64] = {0};
 extern u32 ddr_cs_num;
 bool is_video_connected = false;
 uint32_t reboot_config;
-void refresh_config_info(u8 *eeprom_data);
-void read_from_eeprom(struct tlvinfo_tlv **tlv_data, u8 tcode);
-int mac_read_from_buffer(u8 *eeprom_data);
+void refresh_config_info(void);
+int mac_read_from_tlv(void);
 
 void set_boot_mode(enum board_boot_mode boot_mode)
 {
@@ -150,6 +154,53 @@ int mmc_get_env_dev(void)
 		return MMC_DEV_SD;
 }
 
+static ulong read_boot_storage_emmc(ulong byte_addr, ulong byte_size, void *buff)
+{
+	ulong ret;
+	struct blk_desc *dev_desc = blk_get_dev("mmc", MMC_DEV_EMMC);
+	if (!dev_desc || dev_desc->type == DEV_TYPE_UNKNOWN) {
+		pr_err("invalid mmc device\n");
+		return 0;
+	}
+
+	blk_dselect_hwpart(dev_desc, 0);
+	ret = blk_dread(dev_desc,
+		byte_addr / dev_desc->blksz,
+		byte_size / dev_desc->blksz, buff);
+	return dev_desc->blksz * ret;
+}
+
+#if !defined(CONFIG_SPL_BUILD)
+static ulong read_boot_storage_sdcard(ulong byte_addr, ulong byte_size, void *buff)
+{
+	ulong ret;
+	struct blk_desc *dev_desc = blk_get_dev("mmc", MMC_DEV_SD);
+	if (!dev_desc || dev_desc->type == DEV_TYPE_UNKNOWN) {
+		pr_err("invalid sdcard device\n");
+		return 0;
+	}
+
+	ret = blk_dread(dev_desc,
+		byte_addr / dev_desc->blksz,
+		byte_size / dev_desc->blksz, buff);
+	return dev_desc->blksz * ret;
+}
+
+static ulong read_boot_storage_spinor(ulong byte_addr, ulong byte_size, void *buff)
+{
+	struct mtd_info *mtd;
+	const char* part = "private";
+
+	mtd_probe_devices();
+	mtd = get_mtd_device_nm(part);
+	if ((NULL != mtd) && (0 == _fb_mtd_read(mtd, buff, byte_addr, byte_size, NULL))) {
+		// print_buffer(0, buff, 1, byte_size, 16);
+		return byte_size;
+	}
+	else
+		return 0;
+}
+
 static bool write_boot_storage_emmc(ulong byte_addr, ulong byte_size, void *buff)
 {
 	struct blk_desc *dev_desc = blk_get_dev("mmc", MMC_DEV_EMMC);
@@ -199,21 +250,41 @@ static bool write_boot_storage_spinor(ulong byte_addr, ulong byte_size, void *bu
 		return false;
 }
 
-static const struct boot_storage_op storage_write[] = {
-	{BOOT_MODE_EMMC, 0x10000, NULL, write_boot_storage_emmc},
-	{BOOT_MODE_SD, 0x10000, NULL, write_boot_storage_sdcard},
-	{BOOT_MODE_NOR, 0, NULL, write_boot_storage_spinor},
+static const struct boot_storage_op storage_op[] = {
+	{BOOT_MODE_EMMC, read_boot_storage_emmc, write_boot_storage_emmc},
+	{BOOT_MODE_SD, read_boot_storage_sdcard, write_boot_storage_sdcard},
+	{BOOT_MODE_NOR, read_boot_storage_spinor, write_boot_storage_spinor},
 };
+#else
+// NOT support write operation in SPL stage
+static const struct boot_storage_op storage_op[] = {
+	{BOOT_MODE_EMMC, read_boot_storage_emmc, NULL},
+};
+#endif
 
-static bool write_training_info(void *buff, ulong byte_size)
+ulong read_boot_storage(void *buff, ulong offset, ulong byte_size)
+{
+	int i;
+	// read data from boot storage
+	enum board_boot_mode boot_storage = get_boot_storage();
+
+	for (i = 0; i < ARRAY_SIZE(storage_op); i++) {
+		if (boot_storage == storage_op[i].boot_storage)
+			return storage_op[i].read(offset, byte_size, buff);
+	}
+
+	return 0;
+}
+
+bool write_boot_storage(void *buff, ulong offset, ulong byte_size)
 {
 	int i;
 	// save data to boot storage
 	enum board_boot_mode boot_storage = get_boot_storage();
 
-	for (i = 0; i < ARRAY_SIZE(storage_write); i++) {
-		if (boot_storage == storage_write[i].boot_storage)
-			return storage_write[i].write(storage_write[i].address, byte_size, buff);
+	for (i = 0; i < ARRAY_SIZE(storage_op); i++) {
+		if (boot_storage == storage_op[i].boot_storage)
+			return storage_op[i].write(offset, byte_size, buff);
 	}
 
 	return false;
@@ -227,7 +298,7 @@ void save_ddr_training_info(void)
 	if ((DDR_TRAINING_INFO_MAGIC == info->magic) &&
 		(info->crc32 == crc32(0, (const uchar *)&info->chipid, sizeof(*info) - 8))) {
 		// save DDR training info to boot storage
-		write_training_info(info, sizeof(*info));
+		write_boot_storage(info, DDR_TRAINING_INFO_OFFSET, sizeof(*info));
 	}
 }
 
@@ -418,7 +489,8 @@ void run_fastboot_command(void)
 		run_command(cmd_para, 0);
 
 		/*read from eeprom and update info to env*/
-		refresh_config_info(NULL);
+		update_tlvinfo();
+		refresh_config_info();
 	}
 }
 
@@ -686,76 +758,19 @@ void setenv_boot_mode(void)
 	}
 }
 
-void read_from_eeprom(struct tlvinfo_tlv **tlv_data, u8 tcode)
+int mac_read_from_tlv(void)
 {
-	static u8 eeprom_data[256];
-	struct tlvinfo_header *tlv_hdr = NULL;
-	struct tlvinfo_tlv *tlv_entry;
-	unsigned int tlv_offset, tlv_len;
-	int ret = 0;
-
-	ret = read_tlvinfo_tlv_eeprom(eeprom_data, &tlv_hdr, &tlv_entry, 0);
-	if (ret < 0) {
-		pr_err("read tlvinfo from eeprom failed!\n");
-		return;
-	}
-
-	tlv_offset = sizeof(struct tlvinfo_header);
-	tlv_len = sizeof(struct tlvinfo_header) + be16_to_cpu(tlv_hdr->totallen);
-	while (tlv_offset < tlv_len) {
-		tlv_entry = (struct tlvinfo_tlv *)&eeprom_data[tlv_offset];
-		if (tlv_entry->type == tcode) {
-			*tlv_data = tlv_entry;
-			return;
-		}
-
-		tlv_offset += sizeof(struct tlvinfo_tlv) + tlv_entry->length;
-	}
-
-	*tlv_data = NULL;
-	return;
-}
-
-struct tlvinfo_tlv *find_tlv_in_buffer(u8 *eeprom_data, u8 tcode)
-{
-	struct tlvinfo_header *hdr = (struct tlvinfo_header *)eeprom_data;
-	int total_length = be16_to_cpu(hdr->totallen);
-	u8 *tlv_end = eeprom_data + sizeof(struct tlvinfo_header) + total_length;
-	u8 *ptr = eeprom_data + sizeof(struct tlvinfo_header);
-
-	while (ptr < tlv_end) {
-		struct tlvinfo_tlv *tlv = (struct tlvinfo_tlv *)ptr;
-
-		if (tlv->type == tcode) {
-			return tlv;
-		}
-
-		ptr += sizeof(struct tlvinfo_tlv) + tlv->length;
-	}
-
-	return NULL;
-}
-
-int mac_read_from_buffer(u8 *eeprom_data) {
 	unsigned int i;
-	struct tlvinfo_tlv *mac_size_tlv;
-	struct tlvinfo_tlv *mac_base_tlv;
-	int maccount;
+	uint32_t mac_size;
 	u8 macbase[6];
-	struct tlvinfo_header *eeprom_hdr = (struct tlvinfo_header *)eeprom_data;
+	int maccount;
 
-	pr_info("EEPROM: ");
-
-	mac_size_tlv = find_tlv_in_buffer(eeprom_data, TLV_CODE_MAC_SIZE);
 	maccount = 1;
-	if (mac_size_tlv) {
-		maccount = (mac_size_tlv->value[0] << 8) | mac_size_tlv->value[1];
+	if (get_tlvinfo(TLV_CODE_MAC_SIZE, (char*)&mac_size, 2) > 0) {
+		maccount = be16_to_cpu(mac_size);
 	}
 
-	mac_base_tlv = find_tlv_in_buffer(eeprom_data, TLV_CODE_MAC_BASE);
-	if (mac_base_tlv) {
-		memcpy(macbase, mac_base_tlv->value, 6);
-	} else {
+	if (get_tlvinfo(TLV_CODE_MAC_BASE, (char*)macbase, 6) <= 0) {
 		memset(macbase, 0, sizeof(macbase));
 	}
 
@@ -789,31 +804,18 @@ int mac_read_from_buffer(u8 *eeprom_data) {
 		}
 	}
 
-	printf("%s v%u len=%u\n", eeprom_hdr->signature, eeprom_hdr->version,
-	       be16_to_cpu(eeprom_hdr->totallen));
-
 	return 0;
 }
 
-void set_env_ethaddr(u8 *eeprom_data) {
+void set_env_ethaddr(void) {
 	int ethaddr_valid = 0, eth1addr_valid = 0;
 	uint8_t mac_addr[6], mac1_addr[6];
-	char cmd_str[128] = {0};
+	char mac_str[32];
 
 	/* Determine source of MAC address and attempt to read it */
-	if (eeprom_data != NULL) {
-		// Attempt to read MAC address from buffer
-
-		if (mac_read_from_buffer(eeprom_data) < 0) {
-			pr_err("Failed to set MAC addresses from EEPROM buffer.\n");
-			return;
-		}
-	} else {
-		// Attempt to read MAC address from EEPROM
-		if (mac_read_from_eeprom() < 0) {
-			pr_err("Read MAC address from EEPROM failed!\n");
-			return;
-		}
+	if (mac_read_from_tlv() < 0) {
+		pr_err("Failed to set MAC addresses from TLV.\n");
+		return;
 	}
 
 	/* check ethaddr valid */
@@ -823,10 +825,11 @@ void set_env_ethaddr(u8 *eeprom_data) {
 		pr_info("valid ethaddr: %02x:%02x:%02x:%02x:%02x:%02x\n",
 			mac_addr[0], mac_addr[1], mac_addr[2],
 			mac_addr[3], mac_addr[4], mac_addr[5]);
-		return ;
+		return;
 	}
 
 	/*create random ethaddr*/
+	pr_info("generate random ethaddr.\n");
 	net_random_ethaddr(mac_addr);
 	mac_addr[0] = 0xfe;
 	mac_addr[1] = 0xfe;
@@ -839,42 +842,22 @@ void set_env_ethaddr(u8 *eeprom_data) {
 	eth_env_set_enetaddr("ethaddr", mac_addr);
 	eth_env_set_enetaddr("eth1addr", mac1_addr);
 
-	/*must read before set/write to eeprom using tlv_eeprom command*/
-	run_command("tlv_eeprom", 0);
-
 	/* save mac address to eeprom */
-	snprintf(cmd_str, (sizeof(cmd_str) - 1), "tlv_eeprom set 0x24 %02x:%02x:%02x:%02x:%02x:%02x", \
-			mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
-	run_command(cmd_str, 0);
-
-	memset(cmd_str, 0, sizeof(cmd_str));
-	snprintf(cmd_str, (sizeof(cmd_str) - 1), "tlv_eeprom set 0x2A 2");
-	run_command(cmd_str, 0);
-
-	memset(cmd_str, 0, sizeof(cmd_str));
-	snprintf(cmd_str, (sizeof(cmd_str) - 1), "tlv_eeprom write");
-	run_command(cmd_str, 0);
+	snprintf(mac_str, (sizeof(mac_str) - 1), "%02x:%02x:%02x:%02x:%02x:%02x",
+	mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
+	set_tlvinfo(TLV_CODE_MAC_BASE, mac_str);
+	set_tlvinfo(TLV_CODE_MAC_SIZE, "2");
+	flush_tlvinfo();
 }
 
-void set_dev_serial_no(uint8_t *eeprom_data)
+void set_dev_serial_no(void)
 {
-	struct tlvinfo_tlv *tlv_entry = NULL;
-	char *strval;
+	char serial[64];
 
-	// Decide where to read the serial number from
-	if (eeprom_data != NULL) {
-		tlv_entry = find_tlv_in_buffer(eeprom_data, TLV_CODE_SERIAL_NUMBER);
-	} else {
-		read_from_eeprom(&tlv_entry, TLV_CODE_SERIAL_NUMBER);
-	}
-
-	if (tlv_entry && (0 < tlv_entry->length) && (tlv_entry->length <= 32)) {
+	memset(serial, 0, sizeof(serial));
+	if (get_tlvinfo(TLV_CODE_SERIAL_NUMBER, serial, sizeof(serial)) > 0) {
 		pr_info("Serial number is valid.\n");
-		strval = malloc(tlv_entry->length + 1);
-		memcpy(strval, tlv_entry->value, tlv_entry->length);
-		strval[tlv_entry->length] = 0;
-		env_set("serial#", strval);
-		free(strval);
+		env_set("serial#", serial);
 	}
 }
 
@@ -883,11 +866,10 @@ struct code_desc_info {
 	char	*m_name;
 };
 
-void refresh_config_info(u8 *eeprom_data)
+void refresh_config_info(void)
 {
-	struct tlvinfo_tlv *tlv_info = NULL;
-	char *strval;
-	int i;
+	char *strval = malloc(64);
+	int i, num, ret;
 
 	const struct code_desc_info {
 		u8    m_code;
@@ -906,33 +888,26 @@ void refresh_config_info(u8 *eeprom_data)
 	};
 
 	for (i = 0; i < ARRAY_SIZE(info); i++) {
-		if (eeprom_data != NULL) {
-			tlv_info = find_tlv_in_buffer(eeprom_data, info[i].m_code);
-		} else {
-			read_from_eeprom(&tlv_info, info[i].m_code);
+		ret = get_tlvinfo(info[i].m_code, strval, 64);
+		if (ret <= 0) {
+			continue;
 		}
 
-		if (tlv_info != NULL) {
-			if (info[i].is_data) {
-				// Convert the numeric value to string
-				strval = malloc(64);
-				int num = 0;
-				for (int j = 0; j < tlv_info->length && j < sizeof(num); j++) {
-					num = (num << 8) | tlv_info->value[j];
-				}
-				sprintf(strval, "%d", num);
-			} else {
-				// Copy the value directly as string
-				strval = malloc(tlv_info->length + 1);
-				memcpy(strval, tlv_info->value, tlv_info->length);
-				strval[tlv_info->length] = '\0';
+		if (info[i].is_data) {
+			num = 0;
+			// Convert the numeric value to string
+			for (int j = 0; j < ret && j < sizeof(num); j++) {
+				num = (num << 8) | strval[j];
 			}
-			env_set(info[i].m_name, strval);
-			free(strval);
+			sprintf(strval, "%d", num);
 		} else {
-			pr_debug("Cannot find TLV data: %s\n", info[i].m_name);
+			strval[ret] = '\0';
 		}
+		pr_info("TLV item: %s = %s\n", info[i].m_name, strval);
+		env_set(info[i].m_name, strval);
 	}
+
+	free(strval);
 }
 
 static int probe_shutdown_charge(void)
@@ -977,9 +952,6 @@ int board_late_init(void)
 	ofnode chosen_node;
 	char ram_size_str[16] = {"\0"};
 	int ret;
-	u8 *eeprom_data;
-	struct tlvinfo_header *tlv_hdr = NULL;
-	struct tlvinfo_tlv *first_entry = NULL;
 
 	// save_ddr_training_info();
 
@@ -987,23 +959,9 @@ int board_late_init(void)
 	if (NULL == env_get("product_name"))
 		env_set("product_name", DEFAULT_PRODUCT_NAME);
 
-	eeprom_data = memalign(ARCH_DMA_MINALIGN, TLV_INFO_MAX_LEN);
-	if (!eeprom_data) {
-		pr_err("Failed to allocate memory for EEPROM data\n");
-		return -ENOMEM;
-	}
-	if (read_tlvinfo_tlv_eeprom(eeprom_data, &tlv_hdr, &first_entry, 0) < 0) {
-		pr_err("Failed to read all EEPROM data\n");
-	}
-	if (tlv_hdr != NULL && first_entry != NULL && is_valid_tlvinfo_header(tlv_hdr)) {
-		set_env_ethaddr(eeprom_data);
-		set_dev_serial_no(eeprom_data);
-		refresh_config_info(eeprom_data);
-	} else {
-		set_env_ethaddr(NULL);
-		set_dev_serial_no(NULL);
-		refresh_config_info(NULL);
-	}
+	set_env_ethaddr();
+	set_dev_serial_no();
+	refresh_config_info();
 
 	set_serialnumber_based_on_boot_mode();
 

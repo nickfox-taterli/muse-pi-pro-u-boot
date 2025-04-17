@@ -25,6 +25,9 @@
 #include <cpu_func.h>
 #include <dt-bindings/soc/spacemit-k1x.h>
 #include <display_options.h>
+#include <asm/io.h>
+#include <configs/k1-x.h>
+#include "../../drivers/gpio/k1x_gpio.h"
 
 #define GEN_CNT			(0xD5001000)
 #define STORAGE_API_P_ADDR	(0xC0838498)
@@ -79,15 +82,143 @@
 #define MMC1_CLK_OFFSET    0x14
 
 extern int __data_start[], __data_end[];
-extern int k1x_eeprom_init(void);
-extern int spacemit_eeprom_read(uint8_t *buffer, uint8_t id);
+extern int get_tlvinfo(uint8_t id, uint8_t *buffer, int max_size);
 extern bool get_mac_address(uint64_t *mac_addr);
+extern char *get_product_name(void);
 extern void update_ddr_info(void);
 extern enum board_boot_mode get_boot_storage(void);
-extern int spl_mtd_read(struct mtd_info *mtd, ulong sector, ulong count, void *buf);
+extern ulong read_boot_storage(void *buff, ulong offset, ulong byte_size);
+extern int dram_init_banksize(void);
+extern void spl_fixup_fdt(void *fdt_blob);
+
 char *product_name;
 extern u32 ddr_cs_num, ddr_datarate, ddr_tx_odt;
 extern const char *ddr_type;
+
+/* LED configurations for different boards */
+#define MAX_PRODUCT_NAMES 1
+
+struct led_config {
+	const char *product_names[MAX_PRODUCT_NAMES];
+	int gpio;
+	unsigned int pad_conf_reg;
+	unsigned int pad_conf_val;
+};
+
+/* Board specific LED configurations */
+static const struct led_config board_leds[] = {
+	{
+		.product_names = {
+			"k1-x_MUSE-Pi-Pro",
+		},
+		.gpio = STATUS_LED_GPIO0,
+		.pad_conf_reg = 0xD401E1E0,  // K1X_PADCONF_DVL0
+		.pad_conf_val = MUX_MODE1 | EDGE_NONE | PULL_DOWN | PAD_1V8_DS2,
+	},
+};
+
+static const struct led_config *current_led;
+
+/* GPIO definitions */
+#define GPIO_OUTPUT     1
+#define GPIO_HIGH       1
+#define GPIO_LOW        0
+
+/* Helper macros for GPIO register access */
+#define GPIO_TO_REG(gp)     (gp >> 5)
+#define GPIO_TO_BIT(gp)     (1 << (gp & 0x1f))
+
+static inline struct gpio_reg *get_gpio_bank(int gpio)
+{
+	const unsigned long offset[] = {0, 4, 8, 0x100};
+	return (struct gpio_reg *)(K1X_GPIO_BASE + offset[GPIO_TO_REG(gpio)]);
+}
+
+static const struct led_config *get_led_config(void)
+{
+	const char *name = get_product_name();
+	int i, j;
+
+	if (!name) {
+		name = DEFAULT_PRODUCT_NAME;
+	}
+
+	for (i = 0; i < ARRAY_SIZE(board_leds); i++) {
+		for (j = 0; j < MAX_PRODUCT_NAMES && board_leds[i].product_names[j]; j++) {
+			if (strcmp(name, board_leds[i].product_names[j]) == 0) {
+				return &board_leds[i];
+			}
+		}
+	}
+
+	pr_debug("Warning: No LED config found for board %s\n", name);
+	return &board_leds[0];
+}
+
+static void gpio_led_init(void)
+{
+	struct gpio_reg *gpio_bank;
+
+	current_led = get_led_config();
+	gpio_bank = get_gpio_bank(current_led->gpio);
+
+	/* Configure LED pad */
+	writel(current_led->pad_conf_val, (void __iomem *)(ulong)current_led->pad_conf_reg);
+
+	/* Set GPIO as output */
+	writel(GPIO_TO_BIT(current_led->gpio), &gpio_bank->gsdr);
+
+	/* Set initial state to HIGH */
+	writel(GPIO_TO_BIT(current_led->gpio), &gpio_bank->gpsr);
+
+	pr_debug("GPIO LED initialized for %s on pin %d\n", current_led->product_names[0], current_led->gpio);
+}
+
+static void gpio_led_set(int value)
+{
+	struct gpio_reg *gpio_bank = get_gpio_bank(current_led->gpio);
+
+	if (value)
+		writel(GPIO_TO_BIT(current_led->gpio), &gpio_bank->gpsr);  // Set HIGH
+	else
+		writel(GPIO_TO_BIT(current_led->gpio), &gpio_bank->gpcr);  // Set LOW
+}
+
+static void gpio_led_blink_for_nor(void)
+{
+	while (1) {
+		/* One short flash - ON for 100ms */
+		gpio_led_set(GPIO_HIGH);
+		mdelay(100);
+		gpio_led_set(GPIO_LOW);
+		mdelay(200);
+
+		/* Long ON for 3 seconds */
+		gpio_led_set(GPIO_HIGH);
+		mdelay(3000);
+	}
+}
+
+static void gpio_led_blink_for_ddr(void)
+{
+	while (1) {
+		/* First short flash - ON for 100ms */
+		gpio_led_set(GPIO_HIGH);
+		mdelay(100);
+		gpio_led_set(GPIO_LOW);
+		mdelay(200);
+
+		/* Second short flash - ON for 100ms */
+		gpio_led_set(GPIO_HIGH);
+		mdelay(100);
+		gpio_led_set(GPIO_LOW);
+		mdelay(200);
+
+		/* Wait for 3 seconds before next cycle */
+		gpio_led_set(GPIO_HIGH);
+		mdelay(3000);
+	}
+}
 
 int timer_init(void)
 {
@@ -307,74 +438,6 @@ void load_board_config(int *eeprom_i2c_index, int *eeprom_pin_group, int *pmic_t
 	pr_debug("pmic_type :%d\n", *pmic_type);
 }
 
-static ulong read_boot_storage_emmc(ulong byte_addr, ulong byte_size, void *buff)
-{
-	ulong ret;
-	//select mmc device(MUST be align with spl.dts): 0:sd, 1:emmc
-	struct blk_desc *dev_desc = blk_get_dev("mmc", 1);
-	if (!dev_desc || dev_desc->type == DEV_TYPE_UNKNOWN) {
-		pr_err("invalid mmc device\n");
-		return 0;
-	}
-
-	blk_dselect_hwpart(dev_desc, 0);
-	ret = blk_dread(dev_desc,
-		byte_addr / dev_desc->blksz,
-		byte_size / dev_desc->blksz, buff);
-	return dev_desc->blksz * ret;
-}
-
-static ulong read_boot_storage_sdcard(ulong byte_addr, ulong byte_size, void *buff)
-{
-	ulong ret;
-	//select sdcard device(MUST be align with spl.dts): 0:sd, 1:emmc
-	struct blk_desc *dev_desc = blk_get_dev("mmc", 0);
-	if (!dev_desc || dev_desc->type == DEV_TYPE_UNKNOWN) {
-		pr_err("invalid sdcard device\n");
-		return 0;
-	}
-
-	ret = blk_dread(dev_desc,
-		byte_addr / dev_desc->blksz,
-		byte_size / dev_desc->blksz, buff);
-	return dev_desc->blksz * ret;
-}
-
-static ulong read_boot_storage_spinor(ulong byte_addr, ulong byte_size, void *buff)
-{
-	struct mtd_info *mtd;
-	const char* part = "private";
-
-	mtd_probe_devices();
-	mtd = get_mtd_device_nm(part);
-	if ((NULL != mtd) && (0 == spl_mtd_read(mtd, byte_addr, byte_size, buff))) {
-		// print_buffer(0, buff, 1, byte_size, 16);
-		return byte_size;
-	}
-	else
-		return 0;
-}
-
-static const struct boot_storage_op storage_read[] = {
-	{BOOT_MODE_EMMC, 0x10000, read_boot_storage_emmc, NULL},
-	{BOOT_MODE_SD, 0x10000, read_boot_storage_sdcard, NULL},
-	{BOOT_MODE_NOR, 0, read_boot_storage_spinor, NULL},
-};
-
-static ulong read_training_info(void *buff, ulong byte_size)
-{
-	int i;
-	// read data from boot storage
-	enum board_boot_mode boot_storage = get_boot_storage();
-
-	for (i = 0; i < ARRAY_SIZE(storage_read); i++) {
-		if (boot_storage == storage_read[i].boot_storage)
-			return storage_read[i].read(storage_read[i].address, byte_size, buff);
-	}
-
-	return 0;
-}
-
 bool restore_ddr_training_info(uint64_t chipid, uint64_t mac_addr)
 {
 	bool success = true;
@@ -387,7 +450,7 @@ bool restore_ddr_training_info(uint64_t chipid, uint64_t mac_addr)
 	info = (struct ddr_training_info_t*)map_sysmem(DDR_TRAINING_INFO_BUFF, 0);
 	// Force to do DDR software training while in USB download mode or info is invalid
 	if ((BOOT_MODE_USB == get_boot_mode()) ||
-		(sizeof(*info) != read_training_info(info, sizeof(*info))) ||
+		(sizeof(*info) != read_boot_storage(info, DDR_TRAINING_INFO_OFFSET, sizeof(*info))) ||
 		(DDR_TRAINING_INFO_MAGIC != info->magic) ||
 		(chipid != info->chipid) ||
 		(mac_addr != info->mac_addr) ||
@@ -482,6 +545,7 @@ int spl_board_init_f(void)
 	ret = uclass_get_device(UCLASS_RAM, 0, &dev);
 	if (ret) {
 		pr_err("DRAM init failed: %d\n", ret);
+		gpio_led_blink_for_ddr();
 		return ret;
 	}
 
@@ -636,8 +700,8 @@ static void spl_load_env(void)
 
 bool get_mac_address(uint64_t *mac_addr)
 {
-	if ((k1x_eeprom_init() >= 0) && (NULL != mac_addr) &&
-		(0 == spacemit_eeprom_read((uint8_t*)mac_addr, TLV_CODE_MAC_BASE))) {
+	if ((NULL != mac_addr) &&
+		(get_tlvinfo(TLV_CODE_MAC_BASE, (uint8_t*)mac_addr, 6)) > 0) {
 		pr_info("Get mac address %llx from eeprom\n", *mac_addr);
 		return true;
 	}
@@ -650,8 +714,8 @@ char *get_product_name(void)
 	char *name = NULL;
 
 	name = calloc(1, 64);
-	if ((k1x_eeprom_init() >= 0) && (NULL != name) &&
-		(0 == spacemit_eeprom_read(name, TLV_CODE_PRODUCT_NAME))) {
+	if ((NULL != name) &&
+		(get_tlvinfo(TLV_CODE_PRODUCT_NAME, name, 64)) > 0) {
 		pr_info("Get product name from eeprom %s\n", name);
 		return name;
 	}
@@ -672,30 +736,27 @@ void update_ddr_info(void)
 	ddr_tx_odt = 0;
 	ddr_type = NULL;
 
-	if (k1x_eeprom_init() < 0)
-		return;
-
 	// read ddr type from eeprom
 	info = malloc(32);
 	memset(info, 0, 32);
-	if (0 == spacemit_eeprom_read(info, TLV_CODE_DDR_TYPE))
+	if (get_tlvinfo(TLV_CODE_DDR_TYPE, info, 32) > 0)
 		ddr_type = info;
 	else
 		free(info);
 
 	// if fail to get ddr cs number from eeprom, update it from dts node
-	if (0 == spacemit_eeprom_read((uint8_t*)&ddr_cs_num, TLV_CODE_DDR_CSNUM))
+	if (get_tlvinfo(TLV_CODE_DDR_CSNUM, (uint8_t*)&ddr_cs_num, 1) > 0)
 		pr_info("Get ddr cs num %d from eeprom\n", ddr_cs_num);
 
 	// if fail to get ddr cs number from eeprom, update it from dts node
-	if (0 == spacemit_eeprom_read((uint8_t*)&ddr_datarate, TLV_CODE_DDR_DATARATE)) {
+	if (get_tlvinfo(TLV_CODE_DDR_DATARATE, (uint8_t*)&ddr_datarate, 2) > 0) {
 		// convert it from big endian to little endian
 		ddr_datarate = be16_to_cpu(ddr_datarate);
 		pr_info("Get ddr datarate %d from eeprom\n", ddr_datarate);
 	}
 
 	// if fail to get ddr tx odt from eeprom, update it from dts node
-	if (0 == spacemit_eeprom_read((uint8_t*)&ddr_tx_odt, TLV_CODE_DDR_TX_ODT)) {
+	if (get_tlvinfo(TLV_CODE_DDR_TX_ODT, (uint8_t*)&ddr_tx_odt, 1) > 0) {
 		pr_info("Get ddr tx odt(%dohm) from eeprom\n", ddr_tx_odt);
 	}
 }
@@ -705,6 +766,8 @@ void spl_board_init(void)
 	/*load env*/
 	spl_load_env();
 	product_name = get_product_name();
+	/* Initialize LED */
+	gpio_led_init();
 }
 
 struct image_header *spl_get_load_buffer(ssize_t offset, size_t size)
@@ -740,4 +803,27 @@ void board_boot_order(u32 *spl_boot_list)
 		//reserve for debug/test to load/run uboot from ram.
 		spl_boot_list[1] = BOOT_DEVICE_RAM;
 	}
+}
+
+void spl_load_error_handler(int bootdev, const char *loader_name)
+{
+	printf("SPL load error: bootdev=%d, loader=%s\n", bootdev, loader_name);
+	switch (bootdev) {
+	case BOOT_DEVICE_NOR:
+		printf("SPI Flash load failed\n");
+		gpio_led_blink_for_nor();
+		break;
+	case BOOT_DEVICE_MMC1:
+	case BOOT_DEVICE_MMC2:
+	case BOOT_DEVICE_NAND:
+	default:
+		printf("%s load failed\n", loader_name);
+		break;
+	}
+}
+
+void spl_perform_fixups(struct spl_image_info *spl_image)
+{
+	dram_init_banksize();
+	spl_fixup_fdt(spl_image->fdt_addr);
 }

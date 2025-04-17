@@ -209,7 +209,7 @@ static int lcd_mipi_identify(struct video_tx_device *dev)
 
 		video_tx_client->panel_info = panel_info;
 
-		if (panel_info->panel_type == LCD_EDP) {
+		if (panel_info->panel_type == LCD_EDP || panel_info->panel_type == LCD_DPI) {
 
 			is_panel = true;
 		} else {
@@ -451,6 +451,10 @@ int lcd_mipi_probe(void)
 		tx_device_client.panel_type = LCD_EDP;
 		tx_device.panel_type = tx_device_client.panel_type;
 		lcd_lt8911ext_edp_1080p_init();
+	} else if(strcmp("lcd_tc358762xbg_dpi", priv->panel_name) == 0) {
+		tx_device_client.panel_type = LCD_DPI;
+		tx_device.panel_type = tx_device_client.panel_type;
+		lcd_tc358762xbg_dpi_800x480_init();
 	} else if(strcmp("icnl9951r", priv->panel_name) == 0) {
 		tx_device_client.panel_type = LCD_MIPI;
 		tx_device.panel_type = tx_device_client.panel_type;

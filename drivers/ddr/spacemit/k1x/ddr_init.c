@@ -42,9 +42,10 @@ static int test_pattern(fdt_addr_t base, fdt_size_t size)
 	uint32_t *save_data;
 	int err = 0;
 
+	// use code sram as temp data buffer(16KB), not enough heap memory
+	ddr_data = (uint32_t*)0xC08D0000;
 	check_size = (DDR_CHECK_SIZE / DDR_CHECK_STEP) * DDR_CHECK_CNT;
-	ddr_data = malloc(check_size);
-	if (!ddr_data) {
+	if (check_size > 0x4000) {
 		pr_err("test zone malloc fail size 0x%llx\n", check_size);
 		return -1;
 	}
@@ -113,7 +114,7 @@ ERR_HANDLE:
 		pr_emerg("dram pattern test failed!\n");
 	}
 
-	free(ddr_data);
+	// free(ddr_data);
 
 	return err;
 }

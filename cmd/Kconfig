@@ -197,6 +197,12 @@ config SPL_CMD_TLV_EEPROM
 	help
 	  Read system EEPROM data block in ONIE Tlvinfo format from SPL.
 
+config CMD_TLV_CUSTOM
+	bool "tlv_custom"
+	help
+	  Display and program the eeprom or boot storage data block in ONIE Tlvinfo
+	  format. TLV stands for Type-Length-Value.
+
 config CMD_SBI
 	bool "sbi"
 	depends on RISCV_SMODE && SBI_V02

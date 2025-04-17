@@ -632,6 +632,18 @@ __weak int spl_check_board_image(struct spl_image_info *spl_image,
 	return 0;
 }
 
+/**
+ * __weak spl_load_error_handler - Handle boot device load error
+ *
+ * @bootdev: Boot device that failed to load
+ * @loader_name: Name of the loader that failed
+ * Return: void
+ */
+__weak void spl_load_error_handler(int bootdev, const char *loader_name)
+{
+    // Default implementation does nothing
+}
+
 static int spl_load_image(struct spl_image_info *spl_image,
 			  struct spl_image_loader *loader)
 {
@@ -704,6 +716,9 @@ static int boot_from_devices(struct spl_image_info *spl_image,
 		if (loader && !spl_load_image(spl_image, loader)) {
 			spl_image->boot_device = bootdev;
 			return 0;
+		}
+		if (loader) {
+			spl_load_error_handler(bootdev, spl_loader_name(loader));
 		}
 	}
 

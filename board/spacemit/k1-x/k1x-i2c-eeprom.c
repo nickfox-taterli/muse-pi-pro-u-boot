@@ -27,8 +27,6 @@ DECLARE_GLOBAL_DATA_PTR;
 int _read_from_i2c(int chip, u32 addr, u32 size, uchar *buf);
 bool _is_valid_tlvinfo_header(struct tlvinfo_header *hdr);
 
-static __section(".data") uint8_t tlv_data[256];
-
 char *spacemit_i2c_eeprom[] = {
 	"atmel,24c02",
 };
@@ -68,34 +66,6 @@ static void init_tlv_data(uint8_t chip, uint8_t *buffer, uint32_t size)
 	_read_from_i2c(chip, offset, be16_to_cpu(hdr->totallen), buffer + offset);
 }
 
-int spacemit_eeprom_read(uint8_t *buffer, uint8_t id)
-{
-	struct tlv_eeprom tlv;
-	uint32_t i;
-
-	tlv.type = 0;
-	tlv.length = 0;
-
-	for (i = sizeof(struct tlvinfo_header); i < sizeof(tlv_data);
-		i = i + tlv.length + 2) {
-		tlv.type = tlv_data[i];
-		tlv.length = tlv_data[i + 1];
-
-		if (tlv.length == 0) {
-			pr_err("Error: wrong tlv length\n");
-			return -1;
-		}
-
-		if (tlv.type == id) {
-			memcpy(buffer, &tlv_data[i + 2], tlv.length);
-			return 0;
-		}
-	}
-
-	pr_info("No 0x%x tlv type in eeprom\n", id);
-	return -2;
-}
-
 static void i2c_set_pinctrl(uint32_t value, uint32_t reg_addr)
 {
 	writel(value, (void __iomem *)(size_t)reg_addr);
@@ -106,14 +76,11 @@ static uint32_t i2c_get_pinctrl(uint32_t reg_addr)
 	return readl((void __iomem *)(size_t)reg_addr);
 }
 
-int k1x_eeprom_init(void)
+int init_tlv_from_eeprom(uint8_t *tlv_data, uint32_t tlv_size)
 {
-	static int saddr = -1, i;
+	int saddr, i;
 	uint8_t bus;
 	uint32_t scl_pin_backup, sda_pin_backup;
-
-	if (saddr >= 0)
-		return saddr;
 
 	for (i = 0; i < ARRAY_SIZE(eeprom_info); i++) {
 		bus = eeprom_info[i].bus;
@@ -131,8 +98,8 @@ int k1x_eeprom_init(void)
 		}
 		else {
 			pr_info("find eeprom in bus %d, address %d\n", bus, saddr);
-			init_tlv_data(saddr, tlv_data, sizeof(tlv_data));
-			return saddr;
+			init_tlv_data(saddr, tlv_data, tlv_size);
+			return tlv_size;
 		}
 	}
 
@@ -160,43 +127,3 @@ int _read_from_i2c(int chip, u32 addr, u32 size, uchar *buf)
 
 	return 0;
 }
-
-int _write_to_i2c(int chip, u32 addr, u32 size, uchar *buf)
-{
-	uint nbytes = size;
-	int ret;
-
-	while (nbytes-- > 0) {
-		ret = i2c_write(chip, addr++, 1, buf++, 1);
-		if (ret){
-			pr_err("write to i2c error:%d\n", ret);
-			return -1;
-		}
-/*
- * No write delay with FRAM devices.
- */
-#if !defined(CONFIG_SYS_I2C_FRAM)
-		udelay(11000);
-#endif
-	}
-	return 0;
-}
-
-int clear_eeprom(u32 dev, u32 erase_size)
-{
-	char *blank_buf = calloc(0, erase_size);
-
-	int chip = k1x_eeprom_init();
-	if (chip < 0){
-		pr_err("can not get i2c bus addr\n");
-		return -1;
-	}
-
-	if (_write_to_i2c(chip, 0, erase_size, blank_buf)){
-		pr_err("clear eeprom fail\n");
-		return -1;
-	}
-	free(blank_buf);
-	return 0;
-}
-

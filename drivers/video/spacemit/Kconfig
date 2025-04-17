@@ -50,4 +50,11 @@ config DISPLAY_SPACEMIT_EDP
 	  This enables Mobile Industry Processor Interface(EDP) display
 	  support.
 
+config DISPLAY_SPACEMIT_DPI
+	bool "DPI Port"
+	depends on DISPLAY_SPACEMIT_MIPI
+	help
+	  This enables Mobile Industry Processor Interface(DPI) display
+	  support.
+
 endif

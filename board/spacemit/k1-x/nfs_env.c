@@ -31,6 +31,8 @@
 
 #define NFS_LOAD_ADDR  CONFIG_FASTBOOT_BUF_ADDR
 
+extern int get_tlvinfo(uint8_t id, uint8_t *buffer, int max_size);
+
 int eth_parse_enetaddr(const char *addr, uint8_t *enetaddr)
 {
 	char *end;
@@ -75,20 +77,6 @@ static int get_mac_address(uint8_t *mac_addr)
 	return -1;
 }
 
-static int read_mac_from_eeprom(uint8_t *mac_addr)
-{
-	struct tlvinfo_tlv *mac_base_tlv = NULL;
-	read_from_eeprom(&mac_base_tlv, TLV_CODE_MAC_BASE);
-	if (mac_base_tlv && mac_base_tlv->length == 6) {
-		memcpy(mac_addr, mac_base_tlv->value, 6);
-		pr_info("Successfully read MAC address from EEPROM: %02x:%02x:%02x:%02x:%02x:%02x\n",
-				mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
-		return 0;
-	}
-	pr_err("Failed to read valid MAC address from EEPROM\n");
-	return -1;
-}
-
 static int get_device_mac_address(uint8_t *mac_addr)
 {
 	// Try to get MAC address from environment first
@@ -97,7 +85,7 @@ static int get_device_mac_address(uint8_t *mac_addr)
 	}
 
 	// If not found in environment, try to read from EEPROM
-	if (read_mac_from_eeprom(mac_addr) == 0) {
+	if (get_tlvinfo(TLV_CODE_MAC_BASE, mac_addr, 6) == 0) {
 		char mac_str[18];
 		sprintf(mac_str, "%02x:%02x:%02x:%02x:%02x:%02x",
 				mac_addr[0], mac_addr[1], mac_addr[2],
@@ -490,9 +478,9 @@ int load_env_from_nfs(void)
 		printf("rootfs_path: %s\n", env_get("rootfs_path"));
 		printf("boot_override: %s\n", env_get("boot_override"));
 
-		sprintf(cmd, "nfs %x %s/env_%s.txt", 
-				NFS_LOAD_ADDR, 
-				mapping.bootfs_path, 
+		sprintf(cmd, "nfs %x %s/env_%s.txt",
+				NFS_LOAD_ADDR,
+				mapping.bootfs_path,
 				CONFIG_SYS_CONFIG_NAME);
 
 		if (run_command(cmd, 0) == 0) {

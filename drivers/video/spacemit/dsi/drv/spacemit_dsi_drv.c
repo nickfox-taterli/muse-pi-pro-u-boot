@@ -506,7 +506,10 @@ static void dsi_config_video_mode(struct spacemit_dsi_device *dsi_ctx, struct sp
 	*/
 
 	/*Jessica: need be calculated by really case*/
-	dsi_write(DSI_VPN_CTRL_0, (0x50<<16) | 0xc08);
+	if (mipi_info->lane_number == 1)
+		dsi_write(DSI_VPN_CTRL_0, (0x50<<16) | 0xc12);
+	else
+		dsi_write(DSI_VPN_CTRL_0, (0x50<<16) | 0xc08);
 
 	/* SET UP LCD1 TIMING REGISTERS FOR DSI BUS */
 	dsi_write(DSI_VPN_TIMING_0, (hact << 16) | httl);

@@ -8,7 +8,7 @@
 #include "k1-x_spm8821.dtsi"
 
 / {
-	model = "spacemit k1-x orangepi-rv2 board";
+	model = "spacemit k1-x MUSE-Pi-Pro board";
 
 	aliases {
 		efuse_power = &ldo_31;
@@ -24,15 +24,13 @@
 		stdout-path = "serial0:115200n8";
 	};
 
-	usb2hub: usb2hub {
-		compatible = "spacemit,usb-hub";
-		vbus-gpios = <&gpio 123 0>;	/* for usb2 hub output vbus */
-		status = "okay";
-	};
-
 	usb3hub: usb3hub {
 		compatible = "spacemit,usb-hub";
-		vbus-gpios = <&gpio 79 0>;	/* gpio_79 for usb3 pwren */
+		hub-gpios = <
+			&gpio 127 0	/* usb3 hub en */
+			&gpio 123 0>;	/* usb3 hub rst*/
+		vbus-gpios = <&gpio 79 0>;	/* usb3 hub output vbus */
+		regulator-force-boot-off;
 		status = "okay";
 	};
 
@@ -79,7 +77,23 @@
 };
 
 &i2c5 {
-	status = "disabled";
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_i2c5_0>;
+
+	raspits-panel@45 {
+		compatible = "raspberrypi,7inch-touchscreen-panel";
+		reg = <0x45>;
+		status = "okay";
+
+		enable-gpios = <&gpio 83 0>;
+
+		port {
+			panel_in_dsi1: endpoint {
+				remote-endpoint = <&dsi_out>;
+			};
+		};
+	};
 };
 
 &i2c6 {
@@ -115,12 +129,6 @@
 		&range GPIO_124 1 (MUX_MODE0 | EDGE_NONE | PULL_UP   | PAD_1V8_DS2)
 		&range GPIO_125 3 (MUX_MODE0 | EDGE_NONE | PULL_DOWN | PAD_1V8_DS2)
 	>;
-
-	usbp1_vbus: usbp1_vbus {
-		pinctrl-single,pins =<
-			K1X_PADCONF(GPIO_66, MUX_MODE0, (EDGE_NONE | PULL_UP | PAD_1V8_DS2))    /* drive_vbus1_iso */
-		>;
-	};
 };
 
 &gpio{
@@ -146,12 +154,11 @@
 };
 
 &usbphy1 {
-	status = "okay";
+	status = "disabled";
 };
 
 &ehci1 {
-	vbus-supply = <&usb2hub>;
-	status = "okay";
+	status = "disabled";
 };
 
 &usb2phy {
@@ -183,7 +190,6 @@
 	pinctrl-1 = <&pinctrl_mmc1_fast>;
 	bus-width = <4>;
 	cd-gpios = <&gpio 80 0>;
-	cd-inverted;
 	vmmc-supply = <&dcdc_9>;
 	vqmmc-supply = <&ldo_23>;
 	spacemit,aib_mmc1_io_reg = <0xD401E81C>;
@@ -277,26 +283,24 @@
 	status = "okay";
 };
 
-&pwm14 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&pinctrl_pwm14_1>;
-	status = "disabled";
-};
-
-&backlight {
-	pwms = <&pwm14 0 2000>;
-	default-brightness-level = <6>;
-	status = "disabled";
-};
-
 &mipi_dsi {
-	status = "disabled";
+	bit-clk = <700000000>;
+	pix-clk = <24000000>;
+	status = "okay";
+
+	ports {
+		mipi_in: port {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			dsi_out: endpoint@1 {
+				reg = <1>;
+				remote-endpoint = <&panel_in_dsi1>;
+			};
+		};
+	};
 };
 
 &panel {
-	dcp-gpios = <&gpio 82 0>;
-	dcn-gpios = <&gpio 83 0>;
-	backlight = <&backlight>;
-	reset-gpios = <&gpio 81 0>;
-	status = "disabled";
+	force-attached = "lcd_tc358762xbg_dpi";
+	status = "okay";
 };

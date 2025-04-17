@@ -28,6 +28,7 @@ enum panel_type {
 	LCD_HDMI = 1,
 	LCD_EDP = 2,
 	LCD_DP = 3,
+	LCD_DPI = 4,
 	LCD_NULL
 };
 

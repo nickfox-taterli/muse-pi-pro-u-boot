@@ -36,7 +36,7 @@ static void update_crc(u8 *eeprom);
 static int prog_eeprom(u8 *eeprom);
 static bool tlvinfo_find_tlv(u8 *eeprom, u8 tcode, int *eeprom_index);
 static bool tlvinfo_delete_tlv(u8 *eeprom, u8 code);
-static bool tlvinfo_add_tlv(u8 *eeprom, int tcode, char *strval);
+bool tlvinfo_add_tlv(u8 *eeprom, int tcode, char *strval);
 static int set_mac(char *buf, const char *string);
 static int set_date(char *buf, const char *string);
 static int set_bytes(char *buf, const char *string, int *converted_accum);
@@ -615,7 +615,7 @@ static bool tlvinfo_delete_tlv(u8 *eeprom, u8 code)
  *  the format in which it will be stored in the EEPROM.
  */
 #define MAX_TLV_VALUE_LEN   256
-static bool tlvinfo_add_tlv(u8 *eeprom, int tcode, char *strval)
+bool tlvinfo_add_tlv(u8 *eeprom, int tcode, char *strval)
 {
 	struct tlvinfo_header *eeprom_hdr = to_header(eeprom);
 	struct tlvinfo_tlv *eeprom_tlv;

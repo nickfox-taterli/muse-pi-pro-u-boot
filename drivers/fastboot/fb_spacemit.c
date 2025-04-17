@@ -864,13 +864,7 @@ void fastboot_oem_flash_bootinfo(const char *cmd, void *download_buffer,
 #endif
 
 #if CONFIG_IS_ENABLED(FASTBOOT_CMD_OEM_CONFIG_ACCESS)
-#if defined(CONFIG_SPL_BUILD)
-extern int get_tlvinfo_from_eeprom(int tcode, char *buf);
-extern int set_val_to_tlvinfo(int tcode, char *valvoid);
-extern int write_tlvinfo_to_eeprom(void);
-#else
 static bool tlvinfo_init = false;
-#endif
 
 struct oem_config_info
 {
@@ -902,15 +896,11 @@ const struct oem_config_info config_info[] = {
 
 static int write_config_info_to_eeprom(uint32_t id, char *value)
 {
-#if defined(CONFIG_SPL_BUILD)
-	if (set_val_to_tlvinfo(id, value) == 0)
-#else
 	if (!tlvinfo_init){
-		run_command("tlv_eeprom", 0);
+		run_command("tlv_custom", 0);
 		tlvinfo_init = true;
 	}
-	if (run_commandf("tlv_eeprom set 0x%x %s", id, value) == 0)
-#endif
+	if (run_commandf("tlv_custom set 0x%x %s", id, value) == 0)
 		return 0;
 	else
 		return -1;
@@ -973,13 +963,9 @@ static void read_oem_configuration(char *config, char *response)
 	info = get_config_info(config);
 	if (NULL != info){
 		pr_info("%s, %x, \n", info->name, info->id);
-#if defined(CONFIG_SPL_BUILD)
-		if (get_tlvinfo_from_eeprom(info->id, ack) == 0){
-#else
 		char *tmp_str = env_get(info->name);
 		if (tmp_str != NULL){
 			strcpy(ack, tmp_str);
-#endif
 			fastboot_okay(ack, response);
 		}else{
 			fastboot_fail("key NOT exist", response);
@@ -1028,15 +1014,11 @@ static void write_oem_configuration(char *config, char *response)
 
 static void flush_oem_configuration(char *config, char *response)
 {
-#if defined(CONFIG_SPL_BUILD)
-	if (0 == write_tlvinfo_to_eeprom())
-#else
 	if (!tlvinfo_init){
-		run_command("tlv_eeprom", 0);
+		run_command("tlv_custom", 0);
 		tlvinfo_init = true;
 	}
-	if (run_command("tlv_eeprom write", 0) == 0)
-#endif
+	if (run_command("tlv_custom write", 0) == 0)
 		fastboot_okay(NULL, response);
 	else
 		fastboot_fail("write fail", response);
@@ -1283,11 +1265,7 @@ void clear_storage_data(char *cmd_parameter, char *response)
 	if (!strncmp("eeprom", operation, 6)){
 		erase_size = (erase_size == 0) ? DEFAULT_EEPROM_ERASE_SIZE : erase_size;
 		pr_info("erase eeprom, erase size:%x\n", erase_size);
-#if defined(CONFIG_SPL_BUILD)
-		if (clear_eeprom(DEFAULT_EEPROM_DEV, erase_size))
-#else
-		if (run_command("tlv_eeprom;tlv_eeprom erase;tlv_eeprom write", 0))
-#endif
+		if (run_command("tlv_custom;tlv_custom erase;tlv_custom write", 0))
 			fastboot_fail("erase eeprom fail", response);
 		else
 			fastboot_okay(NULL, response);

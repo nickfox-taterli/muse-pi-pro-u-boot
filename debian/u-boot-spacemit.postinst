@@ -50,7 +50,17 @@ configure)
             fi
             ;;
         "/dev/nvme0n1"*)
-            if [ ! -e "/dev/mtdblock5" ]; then
+            if [ -e "/dev/mtdblock5" ]; then
+                BOOTINFO_FILE=bootinfo_spinor.bin
+                BOOTINFO=/dev/mtdblock0
+                FSBL=/dev/mtdblock2
+                FSBL_SEEK=0
+                ENV=/dev/mtdblock3
+                ENV_SEEK=0
+                UBOOT=/dev/mtdblock5
+                # 以KB为单位
+                UBOOT_SEEK=0
+            elif [ -e "/dev/mtdblock0" ]; then
                 BOOTINFO_FILE=bootinfo_spinor.bin
                 BOOTINFO=/dev/mtdblock0
                 FSBL=/dev/mtdblock0
@@ -61,15 +71,17 @@ configure)
                 # 以KB为单位
                 UBOOT_SEEK=640
             else
-                BOOTINFO_FILE=bootinfo_spinor.bin
-                BOOTINFO=/dev/mtdblock0
-                FSBL=/dev/mtdblock2
-                FSBL_SEEK=0
-                ENV=/dev/mtdblock3
+                BOOTINFO_FILE=bootinfo_emmc.bin
+                BOOTINFO=/dev/mmcblk2boot0
+                FSBL=/dev/mmcblk2boot0
+                FSBL_SEEK=512
+                ENV=/dev/mmcblk2p2
                 ENV_SEEK=0
-                UBOOT=/dev/mtdblock5
-                # 以KB为单位
+                UBOOT=/dev/mmcblk2p4
                 UBOOT_SEEK=0
+                if [ -e $BOOTINFO ]; then
+                    echo 0 | tee /sys/block/mmcblk2boot0/force_ro
+                fi
             fi
             ;;
         *)
