@@ -136,8 +136,8 @@ int _fb_mtd_erase(struct mtd_info *mtd, u32 erase_size)
 
 /**
  * @brief read or write to mtd devices.
- * 
- * @param mtd 
+ *
+ * @param mtd
  * @return return 0 if read/write success.
  */
 static int _fb_mtd_rw(struct mtd_info *mtd, ulong sector, ulong count,
@@ -462,6 +462,12 @@ void fastboot_mtd_flash_write(const char *cmd, void *download_buffer,
 					 response);
 	} else {
 		printf("Flashing raw image at offset \n");
+
+		if (download_bytes > part->size) {
+			pr_info("%s: Write exceed partition(%s) size!\n", __func__, part->name);
+			fastboot_fail("Write exceed partition size!", response);
+			return;
+		}
 
 		ret = _fb_mtd_write(mtd, download_buffer, 0,
 				     download_bytes, NULL);

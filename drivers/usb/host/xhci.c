@@ -620,6 +620,8 @@ static int xhci_set_configuration(struct usb_device *udev)
 
 	for (ifnum = 0; ifnum < max_ifnum; ifnum++) {
 		ifdesc = &udev->config.if_desc[ifnum];
+		if (ifdesc->desc.bInterfaceClass == USB_CLASS_VIDEO)
+			continue;
 		num_of_ep = ifdesc->no_of_ep;
 		/* EP_FLAG gives values 1 & 4 for EP1OUT and EP2IN */
 		for (cur_ep = 0; cur_ep < num_of_ep; cur_ep++) {
@@ -643,6 +645,8 @@ static int xhci_set_configuration(struct usb_device *udev)
 	/* filling up ep contexts */
 	for (ifnum = 0; ifnum < max_ifnum; ifnum++) {
 		ifdesc = &udev->config.if_desc[ifnum];
+		if (ifdesc->desc.bInterfaceClass == USB_CLASS_VIDEO)
+			continue;
 		err = xhci_init_ep_contexts_if(udev, ctrl, virt_dev, ifdesc);
 		if (err < 0)
 			return err;

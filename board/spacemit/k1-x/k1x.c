@@ -881,10 +881,14 @@ void refresh_config_info(void)
 		{ TLV_CODE_SERIAL_NUMBER,  false, "serial#"},
 		{ TLV_CODE_MANUF_DATE,     false, "manufacture_date"},
 		{ TLV_CODE_MANUF_NAME,     false, "manufacturer"},
+		{ TLV_CODE_DDR_TYPE,       false, "ddr_type"},
 		{ TLV_CODE_WIFI_MAC_ADDR,  false, "wifi_addr"},
 		{ TLV_CODE_BLUETOOTH_ADDR, false, "bt_addr"},
 		{ TLV_CODE_DEVICE_VERSION, true,  "device_version"},
 		{ TLV_CODE_SDK_VERSION,    true,  "sdk_version"},
+		{ TLV_CODE_DDR_CSNUM,      true,  "ddr_cs_num"},
+		{ TLV_CODE_DDR_DATARATE,   true,  "ddr_datarate"},
+		{ TLV_CODE_DDR_TX_ODT,     true,  "ddr_tx_odt"},
 	};
 
 	for (i = 0; i < ARRAY_SIZE(info); i++) {

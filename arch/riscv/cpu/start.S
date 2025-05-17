@@ -206,6 +206,7 @@ wait_for_gd_init:
 	/* Enable cache */
 	jal	icache_enable
 	jal	dcache_enable
+	jal	snoop_enable
 
 	/* Enable prefetch and branch predict*/
 	jal branch_predict_enable
@@ -507,6 +508,7 @@ _non_ai_start:
 	jal	invalidate_icache_all
 	jal	icache_enable
 	jal	dcache_enable
+	jal	snoop_enable
 
 	li	t0, CLUSTER0_RVBADDR_LO_ADDR
 	lwu	a0, 0(t0)

@@ -282,9 +282,9 @@ void fastboot_blk_flash_write(const char *cmd, void *download_buffer,
 		part_offset_t = 0;
 	}
 
-	if (download_bytes > info.size * info.blksz){
-		printf("download_bytes is greater than part size\n");
-		fastboot_fail("download_bytes is greater than part size", response);
+	if ((part_offset_t + download_bytes) > info.size * info.blksz) {
+		pr_info("%s: Write exceed partition(%s) size!\n", __func__, info.name);
+		fastboot_fail("Write exceed partition size!", response);
 		return;
 	}
 

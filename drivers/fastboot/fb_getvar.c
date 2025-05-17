@@ -267,16 +267,14 @@ static void getvar_mtd_size(char *var_parameter, char *response)
 					fastboot_response("OKAY", response, "%lldK", mtd->size / 0x400);
 					return;
 				}
-				return;
-
 			}
 		}
-		fastboot_fail("flash to mtd dev but can not get mtd size", response);
-		return;
+		fastboot_fail("no mtd device", response);
+		break;
 #endif
 	default:
 		fastboot_okay("NULL", response);
-		return;
+		break;
 	}
 }
 
@@ -297,7 +295,7 @@ static void getvar_blk_size(char *var_parameter, char *response)
 	switch(boot_mode){
 	case BOOT_MODE_NOR:
 		if (get_available_blk_dev(&blk_name, &blk_index)){
-			fastboot_okay("NULL", response);
+			fastboot_fail("no block device", response);
 			return;
 		}
 
@@ -305,7 +303,7 @@ static void getvar_blk_size(char *var_parameter, char *response)
 		if (dev_desc != NULL)
 			fastboot_okay("universal", response);
 		else
-			fastboot_okay("NULL", response);
+			fastboot_fail("no block device", response);
 		return;
 	case BOOT_MODE_EMMC:
 	case BOOT_MODE_SD:
@@ -316,11 +314,11 @@ static void getvar_blk_size(char *var_parameter, char *response)
 		if (dev_desc != NULL)
 			fastboot_okay("universal", response);
 		else
-			fastboot_okay("NULL", response);
+			fastboot_fail("no block device", response);
 		return;
 #endif
 	default:
-		fastboot_okay("NULL", response);
+		fastboot_fail("no block device", response);
 		return;
 	}
 }

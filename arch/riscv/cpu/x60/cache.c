@@ -100,6 +100,14 @@ int dcache_status(void)
 	return ret;
 }
 
+void snoop_enable(void){
+#if !CONFIG_IS_ENABLED(SYS_ICACHE_OFF)
+#if CONFIG_SPL_BUILD && CONFIG_SPL_RISCV_MMODE
+	/* snoop should be enabled after dcache is enabled */
+	asm volatile("csrsi 0x7f0, 0x1 \n\t");
+#endif
+#endif
+}
 
 void branch_predict_enable(void)
 {
