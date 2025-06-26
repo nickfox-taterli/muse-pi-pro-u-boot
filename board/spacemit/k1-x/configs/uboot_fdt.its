@@ -181,6 +181,15 @@
 				algo = "crc32";
 			};
 		};
+		fdt_19 {
+			description = "k1-x_som";
+			type = "flat_dt";
+			compression = "none";
+			data = /incbin/("../dtb/k1-x_som.dtb");
+			hash-1 {
+				algo = "crc32";
+			};
+		};
 	};
 
 	configurations {
@@ -274,6 +283,11 @@
 			description = "k1-x_LX-V10";
 			loadables = "uboot";
 			fdt = "fdt_18";
+		};
+		conf_19 {
+			description = "k1-x_som";
+			loadables = "uboot";
+			fdt = "fdt_19";
 		};
 	};
 };
