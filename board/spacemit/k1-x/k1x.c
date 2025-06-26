@@ -62,7 +62,6 @@ extern u32 ddr_cs_num;
 bool is_video_connected = false;
 uint32_t reboot_config;
 void refresh_config_info(void);
-int mac_read_from_tlv(void);
 
 void set_boot_mode(enum board_boot_mode boot_mode)
 {
@@ -758,7 +757,18 @@ void setenv_boot_mode(void)
 	}
 }
 
-int mac_read_from_tlv(void)
+static void increase_eth_addr(uint8_t *mac_addr)
+{
+	mac_addr[5]++;
+	if (0 == mac_addr[5]) {
+		mac_addr[4]++;
+		if (0 == mac_addr[4]) {
+			mac_addr[3]++;
+		}
+	}
+}
+
+int read_mac_from_tlv(void)
 {
 	unsigned int i;
 	uint32_t mac_size;
@@ -770,84 +780,62 @@ int mac_read_from_tlv(void)
 		maccount = be16_to_cpu(mac_size);
 	}
 
-	if (get_tlvinfo(TLV_CODE_MAC_BASE, (char*)macbase, 6) <= 0) {
-		memset(macbase, 0, sizeof(macbase));
+	if ((get_tlvinfo(TLV_CODE_MAC_BASE, (char*)macbase, 6) <= 0)
+		|| !is_valid_ethaddr(macbase)) {
+		return 0;
 	}
 
 	for (i = 0; i < maccount; i++) {
-		if (is_valid_ethaddr(macbase)) {
-			char ethaddr[18];
-			char enetvar[11];
+		char ethaddr[18];
+		char enetvar[11];
 
-			sprintf(ethaddr, "%02X:%02X:%02X:%02X:%02X:%02X",
-				macbase[0], macbase[1], macbase[2],
-				macbase[3], macbase[4], macbase[5]);
-			sprintf(enetvar, i ? "eth%daddr" : "ethaddr", i);
-			/* Only initialize environment variables that are blank
-			 * (i.e. have not yet been set)
-			 */
-			if (!env_get(enetvar))
-				env_set(enetvar, ethaddr);
+		sprintf(ethaddr, "%02X:%02X:%02X:%02X:%02X:%02X",
+			macbase[0], macbase[1], macbase[2],
+			macbase[3], macbase[4], macbase[5]);
+		sprintf(enetvar, i ? "eth%daddr" : "ethaddr", i);
+		/* Only initialize environment variables that are blank
+			* (i.e. have not yet been set)
+			*/
+		if (!env_get(enetvar))
+			env_set(enetvar, ethaddr);
 
-			macbase[5]++;
-			if (macbase[5] == 0) {
-				macbase[4]++;
-				if (macbase[4] == 0) {
-					macbase[3]++;
-					if (macbase[3] == 0) {
-						macbase[0] = 0;
-						macbase[1] = 0;
-						macbase[2] = 0;
-					}
-				}
-			}
-		}
+		increase_eth_addr(macbase);
 	}
 
-	return 0;
+	return maccount;
 }
 
-void set_env_ethaddr(void) {
-	int ethaddr_valid = 0, eth1addr_valid = 0;
-	uint8_t mac_addr[6], mac1_addr[6];
+void set_env_ethaddr(void)
+{
+	uint8_t mac_addr[6];
 	char mac_str[32];
+	int maccount;
 
 	/* Determine source of MAC address and attempt to read it */
-	if (mac_read_from_tlv() < 0) {
-		pr_err("Failed to set MAC addresses from TLV.\n");
+	maccount = read_mac_from_tlv();
+	if (maccount > 0) {
+		pr_info("Found %d valid MAC addresses.\n", maccount);
 		return;
 	}
 
-	/* check ethaddr valid */
-	ethaddr_valid = eth_env_get_enetaddr("ethaddr", mac_addr);
-	eth1addr_valid = eth_env_get_enetaddr("eth1addr", mac1_addr);
-	if (ethaddr_valid && eth1addr_valid) {
-		pr_info("valid ethaddr: %02x:%02x:%02x:%02x:%02x:%02x\n",
-			mac_addr[0], mac_addr[1], mac_addr[2],
-			mac_addr[3], mac_addr[4], mac_addr[5]);
-		return;
-	}
-
-	/*create random ethaddr*/
-	pr_info("generate random ethaddr.\n");
+	/*if there is NO valid MAC address, create 2 random ethaddr */
+	pr_info("generate %d random ethaddr.\n", 2);
 	net_random_ethaddr(mac_addr);
 	mac_addr[0] = 0xfe;
 	mac_addr[1] = 0xfe;
 	mac_addr[2] = 0xfe;
 
-	memcpy(mac1_addr, mac_addr, sizeof(mac1_addr));
-	mac1_addr[5] = mac_addr[5] + 1;
-
-	/* write to env ethaddr and eth1addr */
-	eth_env_set_enetaddr("ethaddr", mac_addr);
-	eth_env_set_enetaddr("eth1addr", mac1_addr);
-
 	/* save mac address to eeprom */
 	snprintf(mac_str, (sizeof(mac_str) - 1), "%02x:%02x:%02x:%02x:%02x:%02x",
-	mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
+		mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
 	set_tlvinfo(TLV_CODE_MAC_BASE, mac_str);
 	set_tlvinfo(TLV_CODE_MAC_SIZE, "2");
 	flush_tlvinfo();
+
+	/* write ethaddr and eth1addr to env */
+	eth_env_set_enetaddr("ethaddr", mac_addr);
+	increase_eth_addr(mac_addr);
+	eth_env_set_enetaddr("eth1addr", mac_addr);
 }
 
 void set_dev_serial_no(void)

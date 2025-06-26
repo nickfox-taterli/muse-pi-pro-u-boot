@@ -29,24 +29,6 @@
 			};
 		};
 		fdt_2 {
-			description = "k1-x_hs450";
-			type = "flat_dt";
-			compression = "none";
-			data = /incbin/("../dtb/k1-x_hs450.dtb");
-			hash-1 {
-				algo = "crc32";
-			};
-		};
-		fdt_3 {
-			description = "k1-x_kx312";
-			type = "flat_dt";
-			compression = "none";
-			data = /incbin/("../dtb/k1-x_kx312.dtb");
-			hash-1 {
-				algo = "crc32";
-			};
-		};
-		fdt_4 {
 			description = "k1-x_MINI-PC";
 			type = "flat_dt";
 			compression = "none";
@@ -55,7 +37,7 @@
 				algo = "crc32";
 			};
 		};
-		fdt_5 {
+		fdt_3 {
 			description = "k1-x_MUSE-N1";
 			type = "flat_dt";
 			compression = "none";
@@ -64,7 +46,7 @@
 				algo = "crc32";
 			};
 		};
-		fdt_6 {
+		fdt_4 {
 			description = "k1-x_MUSE-Pi";
 			type = "flat_dt";
 			compression = "none";
@@ -73,7 +55,7 @@
 				algo = "crc32";
 			};
 		};
-		fdt_7 {
+		fdt_5 {
 			description = "k1-x_milkv-jupiter";
 			type = "flat_dt";
 			compression = "none";
@@ -82,7 +64,7 @@
 				algo = "crc32";
 			};
 		};
-		fdt_8 {
+		fdt_6 {
 			description = "k1-x_MUSE-Book";
 			type = "flat_dt";
 			compression = "none";
@@ -91,7 +73,7 @@
 				algo = "crc32";
 			};
 		};
-		fdt_9 {
+		fdt_7 {
 			description = "m1-x_milkv-jupiter";
 			type = "flat_dt";
 			compression = "none";
@@ -100,7 +82,7 @@
 				algo = "crc32";
 			};
 		};
-		fdt_10 {
+		fdt_8 {
 			description = "k1-x_lpi3a";
 			type = "flat_dt";
 			compression = "none";
@@ -109,7 +91,7 @@
 				algo = "crc32";
 			};
 		};
-		fdt_11 {
+		fdt_9 {
 			description = "k1-x_MUSE-Card";
 			type = "flat_dt";
 			compression = "none";
@@ -118,16 +100,7 @@
 				algo = "crc32";
 			};
 		};
-		fdt_12 {
-			description = "k1-x_MUSE-Paper";
-			type = "flat_dt";
-			compression = "none";
-			data = /incbin/("../dtb/k1-x_MUSE-Paper.dtb");
-			hash-1 {
-				algo = "crc32";
-			};
-		};
-		fdt_13 {
+		fdt_10 {
 			description = "k1-x_MUSE-Paper-mini-4g";
 			type = "flat_dt";
 			compression = "none";
@@ -136,7 +109,7 @@
 				algo = "crc32";
 			};
 		};
-		fdt_14 {
+		fdt_11 {
 			description = "k1-x_ZT001H";
 			type = "flat_dt";
 			compression = "none";
@@ -145,7 +118,7 @@
 				algo = "crc32";
 			};
 		};
-		fdt_15 {
+		fdt_12 {
 			description = "k1-x_uav";
 			type = "flat_dt";
 			compression = "none";
@@ -154,7 +127,7 @@
 				algo = "crc32";
 			};
 		};
-		fdt_16 {
+		fdt_13 {
 			description = "k1-x_MUSE-Paper2";
 			type = "flat_dt";
 			compression = "none";
@@ -163,7 +136,7 @@
 				algo = "crc32";
 			};
 		};
-		fdt_17 {
+		fdt_14 {
 			description = "k1-x_MUSE-Pi-Pro";
 			type = "flat_dt";
 			compression = "none";
@@ -172,7 +145,7 @@
 				algo = "crc32";
 			};
 		};
-		fdt_18 {
+		fdt_15 {
 			description = "k1-x_LX-V10";
 			type = "flat_dt";
 			compression = "none";
@@ -181,7 +154,7 @@
 				algo = "crc32";
 			};
 		};
-		fdt_19 {
+		fdt_16 {
 			description = "k1-x_som";
 			type = "flat_dt";
 			compression = "none";
@@ -200,94 +173,79 @@
 			fdt = "fdt_1";
 		};
 		conf_2 {
-			description = "k1-x_hs450";
+			description = "k1-x_MINI-PC";
 			loadables = "uboot";
 			fdt = "fdt_2";
 		};
 		conf_3 {
-			description = "k1-x_kx312";
+			description = "k1-x_MUSE-N1";
 			loadables = "uboot";
 			fdt = "fdt_3";
 		};
 		conf_4 {
-			description = "k1-x_MINI-PC";
+			description = "k1-x_MUSE-Pi";
 			loadables = "uboot";
 			fdt = "fdt_4";
 		};
 		conf_5 {
-			description = "k1-x_MUSE-N1";
+			description = "k1-x_milkv-jupiter";
 			loadables = "uboot";
 			fdt = "fdt_5";
 		};
 		conf_6 {
-			description = "k1-x_MUSE-Pi";
+			description = "k1-x_MUSE-Book";
 			loadables = "uboot";
 			fdt = "fdt_6";
 		};
 		conf_7 {
-			description = "k1-x_milkv-jupiter";
+			description = "m1-x_milkv-jupiter";
 			loadables = "uboot";
 			fdt = "fdt_7";
 		};
 		conf_8 {
-			description = "k1-x_MUSE-Book";
+			description = "k1-x_lpi3a";
 			loadables = "uboot";
 			fdt = "fdt_8";
 		};
 		conf_9 {
-			description = "m1-x_milkv-jupiter";
+			description = "k1-x_MUSE-Card";
 			loadables = "uboot";
 			fdt = "fdt_9";
 		};
 		conf_10 {
-			description = "k1-x_lpi3a";
+			description = "k1-x_MUSE-Paper-mini-4g";
 			loadables = "uboot";
 			fdt = "fdt_10";
 		};
 		conf_11 {
-			description = "k1-x_MUSE-Card";
+			description = "k1-x_ZT001H";
 			loadables = "uboot";
 			fdt = "fdt_11";
 		};
 		conf_12 {
-			description = "k1-x_MUSE-Paper";
+			description = "k1-x_uav";
 			loadables = "uboot";
 			fdt = "fdt_12";
 		};
 		conf_13 {
-			description = "k1-x_MUSE-Paper-mini-4g";
+			description = "k1-x_MUSE-Paper2";
 			loadables = "uboot";
 			fdt = "fdt_13";
 		};
 		conf_14 {
-			description = "k1-x_ZT001H";
+			description = "k1-x_MUSE-Pi-Pro";
 			loadables = "uboot";
 			fdt = "fdt_14";
 		};
 		conf_15 {
-			description = "k1-x_uav";
+			description = "k1-x_LX-V10";
 			loadables = "uboot";
 			fdt = "fdt_15";
 		};
 		conf_16 {
-			description = "k1-x_MUSE-Paper2";
-			loadables = "uboot";
-			fdt = "fdt_16";
-		};
-		conf_17 {
-			description = "k1-x_MUSE-Pi-Pro";
-			loadables = "uboot";
-			fdt = "fdt_17";
-		};
-		conf_18 {
-			description = "k1-x_LX-V10";
-			loadables = "uboot";
-			fdt = "fdt_18";
-		};
-		conf_19 {
 			description = "k1-x_som";
 			loadables = "uboot";
-			fdt = "fdt_19";
+			fdt = "fdt_16";
 		};
 	};
 };

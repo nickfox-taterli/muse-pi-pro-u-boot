@@ -852,7 +852,8 @@ void top_DDR_MC_init(unsigned DDRC_BASE, unsigned int fp)
 	temp_data |= io_para_update->rx_pu_cal << 17;
 	REG32(DDRC_BASE + MC_CH0_BASE + 0xc8) = temp_data;
 
-	REG32(DDRC_BASE + MC_CH0_BASE + 0xcc) = 0x200;
+	// configure DDR auto power save mode: 0: diable; 0x200: enable
+	REG32(DDRC_BASE + MC_CH0_BASE + 0xcc) = 0x0;
 	fp_timing_init(DDRC_BASE);
 
 	if(byte_mode_tag)
