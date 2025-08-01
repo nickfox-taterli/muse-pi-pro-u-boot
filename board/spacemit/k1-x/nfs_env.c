@@ -226,7 +226,7 @@ static int check_nand_bootfs(void)
 		return -1;
 	}
 
-	snprintf(cmd, sizeof(cmd), "ubifsmount %s", bootfs_name);
+	snprintf(cmd, sizeof(cmd), "ubifsmount ubi0:%s", bootfs_name);
 	if (run_command(cmd, 0) != 0) {
 		return -1;
 	}

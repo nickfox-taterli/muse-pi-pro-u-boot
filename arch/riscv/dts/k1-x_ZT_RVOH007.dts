@@ -1,0 +1,323 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/* Copyright (c) 2023 Spacemit, Inc */
+
+/dts-v1/;
+
+#include "k1-x.dtsi"
+#include "k1-x_pinctrl.dtsi"
+#include "k1-x_spm8821.dtsi"
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/usb/pd.h>
+
+/ {
+	model = "ZT_RVOH007";
+
+	aliases {
+		efuse_power = &ldo_31;
+	};
+
+	memory@0 {
+		device_type = "memory";
+		reg = <0x00000000 0x00000000 0x00000000 0x80000000>;
+	};
+
+	chosen {
+		bootargs = "earlycon=sbi console=ttyS0,115200 debug loglevel=8,initcall_debug=1 rdinit=/init.tmp";
+		stdout-path = "serial0:115200n8";
+	};
+
+	gpio_keys: gpio_keys {
+		compatible = "gpio-keys";
+		fastboot-key-combo = "volume-up";
+		fastboot-key-press-time = <2000>; /* in milliseconds */
+
+		volume-up-button {
+			label = "volume-up";
+			linux,code = <KEY_VOLUMEUP>;
+			gpios = <&gpio 70 1>;
+			debounce-interval = <10>;
+		};
+
+		volume-down-button {
+			label = "volume-down";
+			linux,code = <KEY_VOLUMEDOWN>;
+			gpios = <&gpio 71 1>;
+			debounce-interval = <10>;
+		};
+	};
+};
+
+&cpus {
+	timebase-frequency = <24000000>;
+};
+
+&uart0 {
+	status = "okay";
+};
+
+&i2c0 {
+	status = "disabled";
+};
+
+&i2c1 {
+	status = "disabled";
+};
+
+&i2c2 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_i2c2_0>;
+	status = "okay";
+
+	eeprom@50{
+		compatible = "atmel,24c02";
+		reg = <0x50>;
+		vin-supply-names = "eeprom_1v8";
+		status = "okay";
+	};
+};
+
+&i2c3 {
+	status = "disabled";
+};
+
+&i2c4 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_i2c4_2>;
+	status = "okay";
+
+	husb239_u2: tcpc@62 {
+		compatible = "hynetek,husb239";
+		reg = <0x62>;
+		status = "okay";
+
+		connector {
+			compatible = "usb-c-connector";
+			label = "USB-C";
+			sink-pdos = <PDO_VAR(5000, 9000, 2000)>;
+		};
+	};
+};
+
+&i2c5 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_i2c5_0>;
+	status = "disabled";
+};
+
+&i2c6 {
+	status = "disabled";
+};
+
+&i2c7 {
+	status = "disabled";
+};
+
+&i2c8 {
+	cw2015: cw2015@62 {
+		compatible = "spacemit,cw2015";
+		reg = <0x62>;
+		cellwise,battery-profile = /bits/ 8 <
+			0x18 0x0A 0x8F 0x78 0x6D 0x6D 0x6D 0x6E
+			0x6E 0x6C 0x6A 0x69 0x66 0x5F 0x65 0x5D
+			0x4C 0x41 0x33 0x2C 0x28 0x27 0x2C 0x3A
+			0x46 0x4C 0x0C 0xCD 0x25 0x45 0x47 0x48
+			0x49 0x49 0x48 0x47 0x36 0x0F 0x65 0x11
+			0x02 0x21 0x3C 0x69 0x8A 0x92 0x93 0x32
+			0x4C 0x7D 0x98 0x9F 0x80 0x4F 0x9D 0xCB
+			0x2F 0x00 0x64 0xA5 0xB5 0xC1 0x46 0xAE
+		>;
+		status = "okay";
+	};
+
+	sgm41515: sgm41515 {
+		compatible = "spacemit,sgm41515";
+		reg = <0x1a>;
+		ch-en-gpios = <&gpio 117 0>;
+		nqon-gpios = <&gpio 115 0>;
+
+		sgm41515-ichrg-uA = <1000000>;
+		sgm41515-vchrg-uV = <4400000>;
+		sgm41515-cur-input-uA = <2000000>;
+		status = "okay";
+	};
+};
+
+&pinctrl {
+	pinctrl-single,gpio-range = <
+		&range GPIO_49  2 (MUX_MODE0 | EDGE_NONE | PULL_UP   | PAD_3V_DS4)
+		&range GPIO_58  1 (MUX_MODE0 | EDGE_NONE | PULL_DOWN | PAD_1V8_DS2)
+		&range GPIO_63  1 (MUX_MODE0 | EDGE_NONE | PULL_DOWN | PAD_1V8_DS2)
+		&range GPIO_64  1 (MUX_MODE1 | EDGE_NONE | PULL_DOWN | PAD_1V8_DS2)
+		&range GPIO_65  1 (MUX_MODE0 | EDGE_NONE | PULL_UP   | PAD_1V8_DS2)
+		&range GPIO_66  2 (MUX_MODE0 | EDGE_NONE | PULL_DOWN | PAD_1V8_DS2)
+		&range PRI_TDI  2 (MUX_MODE1 | EDGE_NONE | PULL_UP   | PAD_1V8_DS2)
+		&range PRI_TCK  1 (MUX_MODE1 | EDGE_NONE | PULL_DOWN | PAD_1V8_DS2)
+		&range PRI_TDO  1 (MUX_MODE1 | EDGE_NONE | PULL_UP   | PAD_1V8_DS2)
+		&range GPIO_74  1 (MUX_MODE0 | EDGE_NONE | PULL_UP   | PAD_1V8_DS2)
+		&range GPIO_79  1 (MUX_MODE0 | EDGE_NONE | PULL_UP   | PAD_1V8_DS2)
+		&range GPIO_80  1 (MUX_MODE0 | EDGE_NONE | PULL_UP   | PAD_3V_DS4)
+		&range GPIO_81  3 (MUX_MODE0 | EDGE_NONE | PULL_UP   | PAD_1V8_DS2)
+		&range GPIO_90  1 (MUX_MODE0 | EDGE_NONE | PULL_DOWN | PAD_1V8_DS2)
+		&range GPIO_91  2 (MUX_MODE0 | EDGE_NONE | PULL_UP   | PAD_1V8_DS2)
+		&range DVL0     2 (MUX_MODE1 | EDGE_NONE | PULL_DOWN | PAD_1V8_DS2)
+		&range GPIO_110 1 (MUX_MODE0 | EDGE_NONE | PULL_DOWN | PAD_1V8_DS2)
+		&range GPIO_114 1 (MUX_MODE0 | EDGE_NONE | PULL_DOWN | PAD_1V8_DS2)
+		&range GPIO_115 2 (MUX_MODE0 | EDGE_NONE | PULL_DOWN | PAD_1V8_DS2)
+		&range GPIO_123 1 (MUX_MODE0 | EDGE_NONE | PULL_DOWN | PAD_1V8_DS2)
+		&range GPIO_124 1 (MUX_MODE0 | EDGE_NONE | PULL_UP   | PAD_1V8_DS2)
+		&range GPIO_125 3 (MUX_MODE0 | EDGE_NONE | PULL_DOWN | PAD_1V8_DS2)
+	>;
+};
+
+&gpio{
+	gpio-ranges = <
+		&pinctrl 49 GPIO_49 2
+		&pinctrl 58 GPIO_58 1
+		&pinctrl 63 GPIO_63 1
+		&pinctrl 65 GPIO_65 3
+		&pinctrl 70 PRI_TDI 4
+		&pinctrl 74 GPIO_74 1
+		&pinctrl 79 GPIO_79 1
+		&pinctrl 80 GPIO_80 4
+		&pinctrl 90 GPIO_90 3
+		&pinctrl 96 DVL0 2
+		&pinctrl 110 GPIO_110 1
+		&pinctrl 114 GPIO_114 3
+		&pinctrl 123 GPIO_123 5
+	>;
+};
+
+&udc {
+	status = "okay";
+};
+
+&usbphy1 {
+	status = "okay";
+};
+
+&ehci1 {
+	status = "okay";
+};
+
+&usb2phy {
+	status = "okay";
+};
+
+&combphy {
+	status = "okay";
+};
+
+&usbdrd3 {
+	status = "okay";
+	dwc3@c0a00000 {
+		dr_mode = "host";
+		maximum-speed = "high-speed";
+		phy_type = "utmi";
+		snps,dis_enblslpm_quirk;
+		snps,dis_u2_susphy_quirk;
+		snps,dis_u3_susphy_quirk;
+		snps,dis-del-phy-power-chg-quirk;
+		snps,dis-tx-ipgap-linecheck-quirk;
+	};
+};
+
+/* eMMC */
+&sdhci2 {
+	bus-width = <8>;
+	non-removable;
+	mmc-hs400-1_8v;
+	mmc-hs400-enhanced-strobe;
+	sdh-phy-module = <1>;
+	clk-src-freq = <375000000>;
+	status = "okay";
+};
+
+&qspi {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_qspi>;
+
+	flash@0 {
+		compatible = "jedec,spi-nor";
+		reg = <0>;
+		spi-max-frequency = <26500000>;
+		m25p,fast-read;
+		broken-flash-reset;
+		status = "disabled";
+	};
+};
+
+&efuse {
+	status = "okay";
+};
+
+&ldo_27 {
+	regulator-init-microvolt = <1200000>;
+	regulator-boot-on;
+	regulator-state-mem {
+			regulator-off-in-suspend;
+	};
+};
+
+&dpu {
+	status = "okay";
+};
+
+&pwm14 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_pwm14_1>;
+	status = "okay";
+};
+
+&backlight {
+	pwms = <&pwm14 0 2000>;
+	default-brightness-level = <6>;
+	status = "okay";
+};
+
+&mipi_dsi {
+	status = "okay";
+};
+
+&panel {
+	force-attached = "hxdm101";
+	dcp-gpios = <&gpio 34 0>;
+	dcn-gpios = <&gpio 42 0>;
+	backlight = <&backlight>;
+	reset-gpios = <&gpio 59 0>;
+	status = "okay";
+};
+
+&shutdown_charging {
+	electricity-meter = <&cw2015>;
+	power-domains = <&pmu K1X_PMU_WKUP_EVENT_PWR_DOMAIN>;
+
+	wk-name = "pwr_event", "pwr_int", "rtc_ctrl", "rtc_event", "rtc_irq", "sys-shutdown", "reboot-flag";
+	pwr_event = <&power_event>;
+	pwr_int = <&power_int>;
+
+	rtc_ctrl = <&rtc_ctrl>;
+	rtc_event = <&rtc_event>;
+	rtc_irq = <&rtc_irq>;
+
+	sys-shutdown = <&power_down>;
+	reboot-flag = <&reboot_flag>;
+
+	charge-light = <&gpio 75 0 &gpio 76 0>;
+	valid-level = <1>;
+
+	backlight = <&backlight>;
+
+	charger-name = "charger0";
+	charger0 = <&sgm41515>;
+
+	battery-threshold0 = <3>;
+	battery-threshold1 = <5>;
+	battery-threshold2 = <100>;
+
+	status = "disabled";
+};

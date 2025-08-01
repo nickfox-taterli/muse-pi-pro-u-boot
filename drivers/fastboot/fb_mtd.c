@@ -19,6 +19,7 @@
 #include <mapmem.h>
 #include <mtd.h>
 #include <linux/mtd/spi-nor.h>
+#include <linux/delay.h>
 
 struct fb_mtd_sparse {
 	struct mtd_info		*mtd;
@@ -330,7 +331,6 @@ void fastboot_mtd_flash_write(const char *cmd, void *download_buffer,
 	int ret;
 	char mtd_partition[20] = {'\0'};
 	char ubi_volume[20] = {'\0'};
-	char *token;
 	char cmd_buf[256];
 	int need_erase = 1;
 	u64 compare_val = 0;
@@ -353,30 +353,6 @@ void fastboot_mtd_flash_write(const char *cmd, void *download_buffer,
 		memset(fdev->mtd_table, '\0', 10);
 	}
 
-	/* Check commands and process them */
-	if (strchr(cmd, '-') != NULL) {
-		char *cmd_copy = strdup(cmd);
-		token = strtok(cmd_copy, "-");
-		if (token != NULL) {
-			strcpy(mtd_partition, token);
-			cmd = mtd_partition;
-
-			token = strtok(NULL, "-");
-			if (token != NULL) {
-				strcpy(ubi_volume, token);
-			}
-		}
-
-		free(cmd_copy);
-		printf("mtd_partition: %s\n", mtd_partition);
-		printf("ubi_volume: %s\n", ubi_volume);
-		const char *last_erased = env_get("last_erased_partition");
-		need_erase = last_erased == NULL || strcmp(last_erased, mtd_partition) != 0;
-	} else {
-		ubi_volume[0] = '\0';
-		printf("Normal mtd partition ......\n");
-	}
-
 	if (!strncmp(cmd, "mtd", 3)){
 		fastboot_oem_flash_gpt(cmd, fastboot_buf_addr, download_bytes,
 						response, fdev);
@@ -393,17 +369,68 @@ void fastboot_mtd_flash_write(const char *cmd, void *download_buffer,
 		return;
 	}
 
+	/* Check if partition should use UBI based on size and flash type */
+	bool use_ubi = false;
+
+	// Get UBI size threshold from environment, default to 16MB
+	const char *threshold_env = env_get("fastboot_ubi_size");
+	u64 ubi_threshold = 16 * 1024 * 1024;  // Default 16MB
+	if (threshold_env) {
+		printf("fastboot_ubi_size: %s\n", threshold_env);
+		ubi_threshold = simple_strtoul(threshold_env, NULL, 0) * 1024 * 1024;
+	}
+
+	if ((mtd->type == MTD_NANDFLASH || mtd->type == MTD_MLCNANDFLASH) && 
+	    part->size > ubi_threshold) {
+		use_ubi = true;
+		printf("Partition %s: NAND flash, size %lluMB > %lluMB, using UBI\n", 
+		       cmd, part->size / (1024 * 1024), ubi_threshold / (1024 * 1024));
+	} else if (mtd->type == MTD_NANDFLASH || mtd->type == MTD_MLCNANDFLASH) {
+		printf("Partition %s: NAND flash, size %lluMB <= %lluMB, using direct write\n", 
+		       cmd, part->size / (1024 * 1024), ubi_threshold / (1024 * 1024));
+	} else {
+		printf("Partition %s: NOR flash, using direct MTD write\n", cmd);
+	}
+
+	if (use_ubi) {
+		/* Handle as MTD partition with UBI volumes */
+		strcpy(mtd_partition, cmd);
+		strcpy(ubi_volume, cmd);  /* Use same name for UBI volume */
+		printf("Using UBI for partition: %s\n", cmd);
+		printf("mtd_partition: %s\n", mtd_partition);
+		printf("ubi_volume: %s\n", ubi_volume);
+		const char *last_erased = env_get("last_erased_partition");
+		need_erase = last_erased == NULL || strcmp(last_erased, mtd_partition) != 0;
+	} else {
+		ubi_volume[0] = '\0';
+		printf("Using direct MTD write for partition: %s\n", cmd);
+	}
+
 	/*unlock nor flash protect*/
 	_nor_unlock(mtd);
 
 	if (need_erase) {
-		/*must erase at first when write data to mtd devices*/
-		printf("Erasing MTD partition %s\n", part->name);
-		ret = _fb_mtd_erase(mtd, download_bytes);
-		if (ret) {
-			printf("failed erasing from device %s\n", mtd->name);
-			fastboot_fail("failed erasing from device", response);
-			return;
+		/* For UBI partitions, use mtd erase command for cleaner operation */
+		if (ubi_volume[0] != '\0') {
+			printf("Erasing UBI partition %s with mtd erase\n", part->name);
+			run_command("ubi detach", 0);  /* Detach first */
+			snprintf(cmd_buf, sizeof(cmd_buf), "mtd erase %s", part->name);
+			printf("Executing command: %s\n", cmd_buf);
+			ret = run_command(cmd_buf, 0);
+			if (ret) {
+				printf("failed erasing partition %s with mtd erase\n", part->name);
+				fastboot_fail("failed erasing partition", response);
+				return;
+			}
+		} else {
+			/* For non-UBI partitions, use internal erase function */
+			printf("Erasing MTD partition %s\n", part->name);
+			ret = _fb_mtd_erase(mtd, download_bytes);
+			if (ret) {
+				printf("failed erasing from device %s\n", mtd->name);
+				fastboot_fail("failed erasing from device", response);
+				return;
+			}
 		}
 		env_set("last_erased_partition", mtd_partition);
 	}
@@ -411,10 +438,32 @@ void fastboot_mtd_flash_write(const char *cmd, void *download_buffer,
 
 	if (ubi_volume[0] != '\0') {
 
-		/* Select NAND device and attach to UBI subsystem */
-		snprintf(cmd_buf, sizeof(cmd_buf), "ubi part %s", mtd_partition);
-		printf("Executing command: %s\n", cmd_buf);
-		run_command(cmd_buf, 0);
+		/* Check if partition was just erased by looking at last_erased_partition */
+		const char *last_erased = env_get("last_erased_partition");
+		bool partition_was_erased = (last_erased != NULL && strcmp(last_erased, mtd_partition) == 0);
+
+		if (partition_was_erased) {
+			printf("Partition %s was just erased, initializing fresh UBI...\n", mtd_partition);
+			/* For a freshly erased partition, we need to create UBI from scratch */
+			snprintf(cmd_buf, sizeof(cmd_buf), "ubi part %s %d", mtd_partition, 2048);
+			printf("Executing command: %s\n", cmd_buf);
+			run_command(cmd_buf, 0);
+			/* Clear the erased flag after UBI initialization */
+			env_set("last_erased_partition", "");
+		} else {
+			/* Try to attach existing UBI partition */
+			snprintf(cmd_buf, sizeof(cmd_buf), "ubi part %s", mtd_partition);
+			printf("Executing command: %s\n", cmd_buf);
+			int ubi_part_ret = run_command(cmd_buf, 0);
+
+			/* If UBI partition attach failed, try with page size parameter */
+			if (ubi_part_ret != 0) {
+				printf("UBI attach failed, trying with page size parameter...\n");
+				snprintf(cmd_buf, sizeof(cmd_buf), "ubi part %s %d", mtd_partition, 2048);
+				printf("Executing command: %s\n", cmd_buf);
+				run_command(cmd_buf, 0);
+			}
+		}
 
 		/* Check if UBI volume exists */
 		printf("Checking if UBI volume '%s' exists.\n", ubi_volume);
@@ -425,11 +474,26 @@ void fastboot_mtd_flash_write(const char *cmd, void *download_buffer,
 		/* If the UBI volume does not exist, create it */
 		if (ret != 0) {
 			printf("UBI volume '%s' not found. Creating it.\n", ubi_volume);
-			snprintf(cmd_buf, sizeof(cmd_buf), "ubi create %s 0x%X d", ubi_volume, download_bytes);
+			/* Use auto-size to let UBI determine optimal volume size */
+			snprintf(cmd_buf, sizeof(cmd_buf), "ubi create %s", ubi_volume);
+			printf("Creating UBI volume using auto-size\n");
 			printf("Executing command: %s\n", cmd_buf);
 			run_command(cmd_buf, 0);
 		} else {
 			printf("UBI volume '%s' already exists.\n", ubi_volume);
+			/* Delete existing volume before recreating it */
+			printf("Removing existing UBI volume '%s'.\n", ubi_volume);
+			snprintf(cmd_buf, sizeof(cmd_buf), "ubi remove %s", ubi_volume);
+			printf("Executing command: %s\n", cmd_buf);
+			run_command(cmd_buf, 0);
+
+			/* Recreate the volume */
+			printf("Recreating UBI volume '%s'.\n", ubi_volume);
+			/* Use auto-size to let UBI determine optimal volume size */
+			snprintf(cmd_buf, sizeof(cmd_buf), "ubi create %s", ubi_volume);
+			printf("Creating UBI volume using auto-size\n");
+			printf("Executing command: %s\n", cmd_buf);
+			run_command(cmd_buf, 0);
 		}
 
 		/* Write the downloaded data to the UBI volume */
@@ -437,6 +501,40 @@ void fastboot_mtd_flash_write(const char *cmd, void *download_buffer,
 		snprintf(cmd_buf, sizeof(cmd_buf), "ubi write %p %s 0x%X", download_buffer, ubi_volume, download_bytes);
 		printf("Executing command: %s\n", cmd_buf);
 		run_command(cmd_buf, 0);
+
+		/* Detach and re-attach UBI to ensure layout table is properly saved */
+		printf("Detaching UBI to save layout table.\n");
+		snprintf(cmd_buf, sizeof(cmd_buf), "ubi detach");
+		run_command(cmd_buf, 0);
+
+		/* Re-attach to verify the UBI volume was created properly */
+		printf("Re-attaching UBI partition to verify.\n");
+		snprintf(cmd_buf, sizeof(cmd_buf), "ubi part %s", mtd_partition);
+		printf("Executing command: %s\n", cmd_buf);
+		if (run_command(cmd_buf, 0) == 0) {
+			/* Verify the volume exists */
+			snprintf(cmd_buf, sizeof(cmd_buf), "ubi check %s", ubi_volume);
+			printf("Executing command: %s\n", cmd_buf);
+			if (run_command(cmd_buf, 0) == 0) {
+				printf("UBI volume '%s' verified successfully.\n", ubi_volume);
+			} else {
+				printf("Warning: UBI volume '%s' verification failed.\n", ubi_volume);
+			}
+		} else {
+			printf("Warning: Failed to re-attach UBI partition '%s'.\n", mtd_partition);
+		}
+
+		/* Final detach to clean up */
+		printf("Final UBI detach.\n");
+		snprintf(cmd_buf, sizeof(cmd_buf), "ubi detach");
+		run_command(cmd_buf, 0);
+
+		/* Force filesystem sync to ensure all data is written to flash */
+		printf("Forcing sync to ensure UBI layout is written to flash.\n");
+		run_command("sync", 0);
+
+		/* Add delay to ensure flash write completion */
+		mdelay(100);
 
 		fastboot_okay(NULL, response);
 		return;

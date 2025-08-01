@@ -262,7 +262,7 @@ void fastboot_blk_flash_write(const char *cmd, void *download_buffer,
 			part_offset_t = 0;
 		}
 
-		void *decompress_addr = (void *)GZIP_DECOMPRESS_ADDR;
+		void *decompress_addr = (void *)env_get_hex("decompress_addr", GZIP_DECOMPRESS_ADDR);
 		pr_info("decompress_addr:%p\n", decompress_addr);
 		if (run_commandf("unzip %x %x", download_buffer, decompress_addr)){
 			printf("unzip gzip data fail, \n");

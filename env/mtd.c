@@ -24,7 +24,13 @@ static struct udevice *env_mtd_dev = NULL;
 static int env_mtd_init(void) {
 	if (!env_mtd_dev) {
 		if (uclass_get_device(UCLASS_MTD, 0, &env_mtd_dev)) {
-			return -ENODEV;
+			/*
+			* return here -ENOENT, so env_init()
+			* can set the init bit and later if no
+			* other Environment storage is defined
+			* can set the default environment
+			*/
+			return -ENOENT;
 		}
 	}
 	return 0;

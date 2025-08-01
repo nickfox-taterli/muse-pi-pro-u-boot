@@ -163,6 +163,15 @@
 				algo = "crc32";
 			};
 		};
+		fdt_17 {
+			description = "k1-x_ZT_RVOH007";
+			type = "flat_dt";
+			compression = "none";
+			data = /incbin/("../dtb/k1-x_ZT_RVOH007.dtb");
+			hash-1 {
+				algo = "crc32";
+			};
+		};
 	};
 
 	configurations {
@@ -246,6 +255,11 @@
 			description = "k1-x_som";
 			loadables = "uboot";
 			fdt = "fdt_16";
+		};
+		conf_17 {
+			description = "k1-x_ZT_RVOH007";
+			loadables = "uboot";
+			fdt = "fdt_17";
 		};
 	};
 };

@@ -294,6 +294,7 @@ static void getvar_blk_size(char *var_parameter, char *response)
 	u32 boot_mode = get_boot_pin_select();
 	switch(boot_mode){
 	case BOOT_MODE_NOR:
+	case BOOT_MODE_NAND:
 		if (get_available_blk_dev(&blk_name, &blk_index)){
 			fastboot_fail("no block device", response);
 			return;

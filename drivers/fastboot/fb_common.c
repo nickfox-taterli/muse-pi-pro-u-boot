@@ -182,6 +182,11 @@ void fastboot_init(void *buf_addr, u32 buf_size)
 {
 	fastboot_buf_addr = buf_addr ? buf_addr :
 				       (void *)CONFIG_FASTBOOT_BUF_ADDR;
-	fastboot_buf_size = buf_size ? buf_size : CONFIG_FASTBOOT_BUF_SIZE;
+	fastboot_buf_size = env_get_hex("fastboot_buffer_size", CONFIG_FASTBOOT_BUF_SIZE);
+	if ((0 != buf_size) && (buf_size < fastboot_buf_size)) {
+		pr_info("Shrink fastboot buffer size from %u to %u\n",
+			CONFIG_FASTBOOT_BUF_SIZE, buf_size);
+		fastboot_buf_size  = buf_size;
+	}
 	fastboot_set_progress_callback(NULL);
 }
