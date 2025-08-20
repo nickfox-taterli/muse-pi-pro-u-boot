@@ -91,9 +91,11 @@
 
 /* Watchdog Timer Registers */
 #define SPM8821_WDT_CTRL           0x44
+
 #define SPM8821_PWR_CTRL0          0x7C
 #define SPM8821_PWR_CTRL2          0x7E
-#define SPM8821_PWR_CTRL2_MSK		0xff
+#define SPM8821_PWR_CTRL2_MSK      0xff
+#define SPM8821_PWR_STS0           0x7F
 
 /* Watchdog Timer Control Bits */
 #define SPM8821_WDT_CLEAR_STATUS     0x1
@@ -110,6 +112,9 @@
 
 #define SPM8821_RTC_TICK_EVENT		0x92
 #define SPM8821_RTC_TICK_EVENT_MSK	0x3f
+
+#define SPM8821_PWRKY_EVENT		0x97
+#define SPM8821_PWRKY_EVENT_MSK	0x3f
 
 #define SPM8821_RTC_TICK_IRQ		0x99
 #define SPM8821_RTC_TICK_IRQ_MSK	0x3f

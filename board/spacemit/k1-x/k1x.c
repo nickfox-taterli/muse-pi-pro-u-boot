@@ -346,14 +346,14 @@ u32 get_reboot_config(void)
 		}
 		pmic_read(dev, P1_NON_RESET_REG, &value, 1);
 		pr_info("Read PMIC reg %x value %x\n", P1_NON_RESET_REG, value);
-		if (1 == (value & 3)) {
+		if (1 == (value & 7)) {
 			reboot_config = BOOT_MODE_USB;
-			value &= ~3;
+			value &= ~7;
 			pmic_write(dev, P1_NON_RESET_REG, &value, 1);
 		}
-		else if (2 == (value & 3)) {
+		else if (2 == (value & 7)) {
 			reboot_config = BOOT_MODE_SHELL;
-			value &= ~3;
+			value &= ~7;
 			pmic_write(dev, P1_NON_RESET_REG, &value, 1);
 		}
 	}

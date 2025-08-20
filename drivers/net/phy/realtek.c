@@ -10,6 +10,7 @@
 #include <linux/bitops.h>
 #include <phy.h>
 #include <linux/delay.h>
+#include <net.h>
 
 #define PHY_RTL8211x_FORCE_MASTER BIT(1)
 #define PHY_RTL8211F_FORCE_EEE_RXC_ON BIT(3)
@@ -68,6 +69,24 @@
 #define RMSR_TX_TIMING_SHIFT		BIT(3)
 #define RMSR_TX_TIMING_MASK		GENMASK(11, 8)
 #define RMSR_TX_TIMING_VAL		0x5
+
+/* RTL8211F WOL interrupt configuration */
+#define RTL8211F_INTBCR_PAGE		0xd40
+#define RTL8211F_INTBCR			0x16
+#define RTL8211F_INTBCR_INTB_PMEB	BIT(5)
+
+/* RTL8211F WOL settings */
+#define RTL8211F_WOL_SETTINGS_PAGE	0xd8a
+#define RTL8211F_WOL_SETTINGS_EVENTS	16
+#define RTL8211F_WOL_EVENT_MAGIC	BIT(12)
+#define RTL8211F_WOL_SETTINGS_STATUS	17
+#define RTL8211F_WOL_STATUS_RESET	(BIT(15) | 0x1fff)
+
+/* RTL8211F Unique phyiscal and multicast address (WOL) */
+#define RTL8211F_PHYSICAL_ADDR_PAGE	0xd8c
+#define RTL8211F_PHYSICAL_ADDR_WORD0	16
+#define RTL8211F_PHYSICAL_ADDR_WORD1	17
+#define RTL8211F_PHYSICAL_ADDR_WORD2	18
 
 static int rtl8211f_phy_extread(struct phy_device *phydev, int addr,
 				int devaddr, int regnum)
@@ -163,16 +182,14 @@ static int rtl8201f_config(struct phy_device *phydev)
 	unsigned int reg;
 
 	if (phydev->flags & PHY_RTL8201F_S700_RMII_TIMINGS) {
-		phy_write(phydev, MDIO_DEVAD_NONE, MIIM_RTL8211F_PAGE_SELECT,
-			  7);
+		phy_write(phydev, MDIO_DEVAD_NONE, MIIM_RTL8211F_PAGE_SELECT, 7);
 		reg = phy_read(phydev, MDIO_DEVAD_NONE, RTL8201F_RMSR);
 		reg &= ~(RMSR_RX_TIMING_MASK | RMSR_TX_TIMING_MASK);
 		/* Set the needed Rx/Tx Timings for proper PHY operation */
-		reg |= (RMSR_RX_TIMING_VAL << RMSR_RX_TIMING_SHIFT)
-		       | (RMSR_TX_TIMING_VAL << RMSR_TX_TIMING_SHIFT);
+		reg |= (RMSR_RX_TIMING_VAL << RMSR_RX_TIMING_SHIFT) |
+			(RMSR_TX_TIMING_VAL << RMSR_TX_TIMING_SHIFT);
 		phy_write(phydev, MDIO_DEVAD_NONE, RTL8201F_RMSR, reg);
-		phy_write(phydev, MDIO_DEVAD_NONE, MIIM_RTL8211F_PAGE_SELECT,
-			  0);
+		phy_write(phydev, MDIO_DEVAD_NONE, MIIM_RTL8211F_PAGE_SELECT, 0);
 	}
 
 	genphy_config_aneg(phydev);
@@ -218,6 +235,52 @@ default_delay:
 	return 0;
 }
 
+#if defined CONFIG_TARGET_SPACEMIT_K1X && defined CONFIG_DM_ETH
+static int rtl8211f_config_wol(struct phy_device *phydev)
+{
+	struct eth_pdata *pdata = dev_get_plat(phydev->dev);
+	unsigned char *wol_addr = pdata->enetaddr;
+
+	if (!dev_read_bool(phydev->dev, "enable-phy-wol")) {
+		return 0;
+	}
+
+	/* Check if the mac address is valid */
+	if(!is_valid_ethaddr(wol_addr)) {
+		printf("Invalid MAC address for WOL\n");
+		return -EINVAL;
+	}
+
+	/* Set the unique physical address for WOL */
+	phy_write(phydev, MDIO_DEVAD_NONE,
+		  MIIM_RTL8211F_PAGE_SELECT, RTL8211F_PHYSICAL_ADDR_PAGE);
+	phy_write(phydev, MDIO_DEVAD_NONE,
+		  RTL8211F_PHYSICAL_ADDR_WORD0, (wol_addr[1] << 8) | wol_addr[0]);
+	phy_write(phydev, MDIO_DEVAD_NONE,
+		  RTL8211F_PHYSICAL_ADDR_WORD1, (wol_addr[3] << 8) | wol_addr[2]);
+	phy_write(phydev, MDIO_DEVAD_NONE,
+		  RTL8211F_PHYSICAL_ADDR_WORD2, (wol_addr[5] << 8) | wol_addr[4]);
+
+	/* Enable magic packet matching and reset WOL status */
+	phy_write(phydev, MDIO_DEVAD_NONE,
+		  MIIM_RTL8211F_PAGE_SELECT, RTL8211F_WOL_SETTINGS_PAGE);
+	phy_write(phydev, MDIO_DEVAD_NONE,
+		  RTL8211F_WOL_SETTINGS_EVENTS, RTL8211F_WOL_EVENT_MAGIC);
+	phy_write(phydev, MDIO_DEVAD_NONE,
+		  RTL8211F_WOL_SETTINGS_STATUS, RTL8211F_WOL_STATUS_RESET);
+
+	/* Enable the WOL interrupt */
+	phy_write(phydev, MDIO_DEVAD_NONE,
+		  MIIM_RTL8211F_PAGE_SELECT, RTL8211F_INTBCR_PAGE);
+	phy_write(phydev, MDIO_DEVAD_NONE,
+		  RTL8211F_INTBCR, RTL8211F_INTBCR_INTB_PMEB);
+
+	/* restore to default page 0 */
+	phy_write(phydev, MDIO_DEVAD_NONE, MIIM_RTL8211F_PAGE_SELECT, 0x0);
+	return 0;
+}
+#endif
+
 static int rtl8211f_config(struct phy_device *phydev)
 {
 	u16 reg;
@@ -232,8 +295,7 @@ static int rtl8211f_config(struct phy_device *phydev)
 
 	phy_write(phydev, MDIO_DEVAD_NONE, MII_BMCR, BMCR_RESET);
 
-	phy_write(phydev, MDIO_DEVAD_NONE,
-		  MIIM_RTL8211F_PAGE_SELECT, 0xd08);
+	phy_write(phydev, MDIO_DEVAD_NONE, MIIM_RTL8211F_PAGE_SELECT, 0xd08);
 	reg = phy_read(phydev, MDIO_DEVAD_NONE, 0x11);
 
 	/* enable TX-delay for rgmii-id and rgmii-txid, otherwise disable it */
@@ -255,15 +317,16 @@ static int rtl8211f_config(struct phy_device *phydev)
 	phy_write(phydev, MDIO_DEVAD_NONE, 0x15, reg);
 
 	/* restore to default page 0 */
-	phy_write(phydev, MDIO_DEVAD_NONE,
-		  MIIM_RTL8211F_PAGE_SELECT, 0x0);
+	phy_write(phydev, MDIO_DEVAD_NONE, MIIM_RTL8211F_PAGE_SELECT, 0x0);
 
 	/* Set green LED for Link, yellow LED for Active */
-	phy_write(phydev, MDIO_DEVAD_NONE,
-		  MIIM_RTL8211F_PAGE_SELECT, 0xd04);
+	phy_write(phydev, MDIO_DEVAD_NONE, MIIM_RTL8211F_PAGE_SELECT, 0xd04);
 	phy_write(phydev, MDIO_DEVAD_NONE, 0x10, 0x617f);
-	phy_write(phydev, MDIO_DEVAD_NONE,
-		  MIIM_RTL8211F_PAGE_SELECT, 0x0);
+	phy_write(phydev, MDIO_DEVAD_NONE, MIIM_RTL8211F_PAGE_SELECT, 0x0);
+
+#if defined CONFIG_TARGET_SPACEMIT_K1X && defined CONFIG_DM_ETH
+	rtl8211f_config_wol(phydev);
+#endif
 
 	genphy_config_aneg(phydev);
 
@@ -295,7 +358,7 @@ static int rtl8211x_parse_status(struct phy_device *phydev)
 				putc('.');
 			udelay(1000);	/* 1 ms */
 			mii_reg = phy_read(phydev, MDIO_DEVAD_NONE,
-					MIIM_RTL8211x_PHY_STATUS);
+					   MIIM_RTL8211x_PHY_STATUS);
 		}
 		puts(" done\n");
 		udelay(500000);	/* another 500 ms (results in faster booting) */
