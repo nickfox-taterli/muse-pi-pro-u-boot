@@ -147,7 +147,6 @@ static void netboot_update_env(void)
 	if (net_root_path[0])
 		env_set("rootpath", net_root_path);
 #endif
-
 	if (net_ip.s_addr) {
 		ip_to_string(net_ip, tmp);
 		env_set("ipaddr", tmp);

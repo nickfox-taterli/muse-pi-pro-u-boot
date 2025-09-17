@@ -481,8 +481,6 @@ void run_fastboot_command(void)
 		|| check_fastboot_keys()
 #endif
 	) {
-		/* show flash log*/
-		env_set("stdout", env_get("stdout_flash"));
 
 		char *cmd_para = "fastboot 0";
 		run_command(cmd_para, 0);
@@ -717,7 +715,6 @@ void run_cardfirmware_flash_command(void)
 	pr_debug("cmd:%s\n", cmd);
 	if (!run_command(cmd, 0)){
 		/* show flash log*/
-		env_set("stdout", env_get("stdout_flash"));
 		run_command("flash_image mmc", 0);
 	}
 #endif
@@ -817,39 +814,6 @@ int read_mac_from_tlv(void)
 	}
 
 	return maccount;
-}
-
-void set_env_ethaddr(void)
-{
-	uint8_t mac_addr[6];
-	char mac_str[32];
-	int maccount;
-
-	/* Determine source of MAC address and attempt to read it */
-	maccount = read_mac_from_tlv();
-	if (maccount > 0) {
-		pr_info("Found %d valid MAC addresses.\n", maccount);
-		return;
-	}
-
-	/*if there is NO valid MAC address, create 2 random ethaddr */
-	pr_info("generate %d random ethaddr.\n", 2);
-	net_random_ethaddr(mac_addr);
-	mac_addr[0] = 0xfe;
-	mac_addr[1] = 0xfe;
-	mac_addr[2] = 0xfe;
-
-	/* save mac address to eeprom */
-	snprintf(mac_str, (sizeof(mac_str) - 1), "%02x:%02x:%02x:%02x:%02x:%02x",
-		mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
-	set_tlvinfo(TLV_CODE_MAC_BASE, mac_str);
-	set_tlvinfo(TLV_CODE_MAC_SIZE, "2");
-	flush_tlvinfo();
-
-	/* write ethaddr and eth1addr to env */
-	eth_env_set_enetaddr("ethaddr", mac_addr);
-	increase_eth_addr(mac_addr);
-	eth_env_set_enetaddr("eth1addr", mac_addr);
 }
 
 void set_dev_serial_no(void)
@@ -984,7 +948,6 @@ int board_late_init(void)
 	if (NULL == env_get("product_name"))
 		env_set("product_name", DEFAULT_PRODUCT_NAME);
 
-	set_env_ethaddr();
 	set_dev_serial_no();
 	refresh_config_info();
 	set_data_buffer_env();

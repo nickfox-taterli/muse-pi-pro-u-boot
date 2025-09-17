@@ -639,6 +639,7 @@ static int do_usb(struct cmd_tbl *cmdtp, int flag, int argc, char *const argv[])
 
 	usb_name = argc > 2 ? argv[2] : NULL;
 
+#ifdef CONFIG_USB_KEYBOARD
 	if (strncmp(argv[1], "kbd", 3) == 0) {
 		if (usb_started)
 			return 0; /* Already started */
@@ -649,6 +650,7 @@ static int do_usb(struct cmd_tbl *cmdtp, int flag, int argc, char *const argv[])
 	}
 
 	usb_kbd_only = false;
+#endif
 
 	if (strncmp(argv[1], "start", 5) == 0) {
 		if (usb_started)

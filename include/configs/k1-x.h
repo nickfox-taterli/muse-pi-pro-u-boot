@@ -20,11 +20,6 @@
 #define RISCV_SMODE_TIMER_FREQ	24000000
 #define RISCV_TIMER_FREQ	(RISCV_SMODE_TIMER_FREQ)
 
-#define CONFIG_IPADDR		10.0.92.253
-#define CONFIG_SERVERIP		10.0.92.134
-#define CONFIG_GATEWAYIP	10.0.92.1
-#define CONFIG_NETMASK		255.255.255.0
-
 #define DEFAULT_PRODUCT_NAME	"k1-x_deb1"
 
 #define DDR_TRAINING_DATA_BASE	(0xc0832000)
@@ -184,7 +179,7 @@ enum private_part_offset {
 
 #define BOOTENV_DEVICE_CONFIG \
 	"product_name=" DEFAULT_PRODUCT_NAME "\0" \
-	"serial#=0123456789ABCDEF\0" \
+	"serial#=BPMIM102080640017A\0" \
 	"manufacturer=" CONFIG_SYS_VENDOR "\0" \
 	"manufacture_date=01/16/2023 11:02:20\0" \
 	"device_version=1\0" \
@@ -195,14 +190,12 @@ enum private_part_offset {
 
 /*if env not use for spl, please define to board/spacemit/k1-x/k1-x.env */
 #define CONFIG_EXTRA_ENV_SETTINGS \
-	"stdout_flash=serial,vidconsole\0" \
 	"kernel_comp_addr_r=" __stringify(CONFIG_SYS_LOAD_ADDR) "\0" \
 	"kernel_comp_size=" __stringify(CONFIG_FASTBOOT_BUF_SIZE) "\0" \
 	"kernel_addr_r=" __stringify(CONFIG_FASTBOOT_BUF_ADDR) "\0" \
 	"ramdisk_addr=" __stringify(RAMDISK_LOAD_ADDR) "\0" \
 	"dtb_addr=" __stringify(DTB_LOAD_ADDR) "\0" \
 	"scriptaddr=0x2c100000\0" \
-	"pxefile_addr_r=0x0c200000\0" \
 	BOOTENV_DEVICE_CONFIG
 
 

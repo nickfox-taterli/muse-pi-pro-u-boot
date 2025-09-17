@@ -51,7 +51,9 @@
 
 #if CONFIG_IS_ENABLED(K1_X_BOARD_ASIC)
 static unsigned usb_hub_debounce_timeout = HUB_DEBOUNCE_TIMEOUT;
+#ifdef CONFIG_USB_KEYBOARD
 extern bool usb_kbd_only;
+#endif
 extern unsigned int usbkbd_count;
 #endif
 
@@ -416,7 +418,7 @@ int usb_hub_port_connect_change(struct usb_device *dev, int port)
 		break;
 	}
 
-#if CONFIG_IS_ENABLED(K1_X_BOARD_ASIC)
+#if CONFIG_IS_ENABLED(K1_X_BOARD_ASIC) && CONFIG_USB_KEYBOARD
 	/* If multiple hub are connected, we only support 2 keyboard for now 
 	 * there is no need to scan over those hubs! */
 	if ((usb_kbd_only && usbkbd_count >= 2) || (usb_kbd_only && speed > USB_SPEED_HIGH)) {
@@ -612,7 +614,8 @@ static int usb_device_list_scan(void)
 		/* We're done, once the list is empty again */
 		if (list_empty(&usb_scan_list))
 			goto out;
-
+			
+#ifdef CONFIG_USB_KEYBOARD
 		if (usb_kbd_only && usbkbd_count >= 2) {
 			list_for_each_entry_safe(usb_scan, tmp, &usb_scan_list, list) {
 				list_del(&usb_scan->list);
@@ -620,6 +623,7 @@ static int usb_device_list_scan(void)
 			}
 			goto out;
 		}
+#endif
 
 		list_for_each_entry_safe(usb_scan, tmp, &usb_scan_list, list) {
 			int ret;
