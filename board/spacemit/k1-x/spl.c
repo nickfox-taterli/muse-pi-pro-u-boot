@@ -95,29 +95,6 @@ char *product_name;
 extern u32 ddr_cs_num, ddr_datarate, ddr_tx_odt;
 extern const char *ddr_type;
 
-/* LED configurations for different boards */
-#define MAX_PRODUCT_NAMES 1
-
-struct led_config {
-	const char *product_names[MAX_PRODUCT_NAMES];
-	int gpio;
-	unsigned int pad_conf_reg;
-	unsigned int pad_conf_val;
-};
-
-/* Board specific LED configurations */
-static const struct led_config board_leds[] = {
-	{
-		.product_names = {
-			"k1-x_MUSE-Pi-Pro",
-		},
-		.gpio = STATUS_LED_GPIO0,
-		.pad_conf_reg = 0xD401E1E0,  // K1X_PADCONF_DVL0
-		.pad_conf_val = MUX_MODE1 | EDGE_NONE | PULL_DOWN | PAD_1V8_DS2,
-	},
-};
-
-static const struct led_config *current_led;
 
 /* GPIO definitions */
 #define GPIO_OUTPUT     1
@@ -132,92 +109,6 @@ static inline struct gpio_reg *get_gpio_bank(int gpio)
 {
 	const unsigned long offset[] = {0, 4, 8, 0x100};
 	return (struct gpio_reg *)(K1X_GPIO_BASE + offset[GPIO_TO_REG(gpio)]);
-}
-
-static const struct led_config *get_led_config(void)
-{
-	const char *name = get_product_name();
-	int i, j;
-
-	if (!name) {
-		name = DEFAULT_PRODUCT_NAME;
-	}
-
-	for (i = 0; i < ARRAY_SIZE(board_leds); i++) {
-		for (j = 0; j < MAX_PRODUCT_NAMES && board_leds[i].product_names[j]; j++) {
-			if (strcmp(name, board_leds[i].product_names[j]) == 0) {
-				return &board_leds[i];
-			}
-		}
-	}
-
-	pr_debug("Warning: No LED config found for board %s\n", name);
-	return &board_leds[0];
-}
-
-static void gpio_led_init(void)
-{
-	struct gpio_reg *gpio_bank;
-
-	current_led = get_led_config();
-	gpio_bank = get_gpio_bank(current_led->gpio);
-
-	/* Configure LED pad */
-	writel(current_led->pad_conf_val, (void __iomem *)(ulong)current_led->pad_conf_reg);
-
-	/* Set GPIO as output */
-	writel(GPIO_TO_BIT(current_led->gpio), &gpio_bank->gsdr);
-
-	/* Set initial state to HIGH */
-	writel(GPIO_TO_BIT(current_led->gpio), &gpio_bank->gpsr);
-
-	pr_debug("GPIO LED initialized for %s on pin %d\n", current_led->product_names[0], current_led->gpio);
-}
-
-static void gpio_led_set(int value)
-{
-	struct gpio_reg *gpio_bank = get_gpio_bank(current_led->gpio);
-
-	if (value)
-		writel(GPIO_TO_BIT(current_led->gpio), &gpio_bank->gpsr);  // Set HIGH
-	else
-		writel(GPIO_TO_BIT(current_led->gpio), &gpio_bank->gpcr);  // Set LOW
-}
-
-static void gpio_led_blink_for_nor(void)
-{
-	while (1) {
-		/* One short flash - ON for 100ms */
-		gpio_led_set(GPIO_HIGH);
-		mdelay(100);
-		gpio_led_set(GPIO_LOW);
-		mdelay(200);
-
-		/* Long ON for 3 seconds */
-		gpio_led_set(GPIO_HIGH);
-		mdelay(3000);
-	}
-}
-
-static void gpio_led_blink_for_ddr(void)
-{
-	while (1) {
-		/* First short flash - ON for 100ms */
-		gpio_led_set(GPIO_HIGH);
-		mdelay(100);
-		gpio_led_set(GPIO_LOW);
-		mdelay(200);
-
-		/* Second short flash - ON for 100ms */
-		gpio_led_set(GPIO_HIGH);
-		mdelay(100);
-		gpio_led_set(GPIO_LOW);
-		mdelay(200);
-
-		/* Wait for 3 seconds before next cycle */
-		gpio_led_set(GPIO_HIGH);
-		mdelay(3000);
-	}
 }
 
 int timer_init(void)
@@ -545,7 +436,6 @@ int spl_board_init_f(void)
 	ret = uclass_get_device(UCLASS_RAM, 0, &dev);
 	if (ret) {
 		pr_err("DRAM init failed: %d\n", ret);
-		gpio_led_blink_for_ddr();
 		return ret;
 	}
 
@@ -766,8 +656,6 @@ void spl_board_init(void)
 	/*load env*/
 	spl_load_env();
 	product_name = get_product_name();
-	/* Initialize LED */
-	gpio_led_init();
 }
 
 struct image_header *spl_get_load_buffer(ssize_t offset, size_t size)
@@ -808,18 +696,6 @@ void board_boot_order(u32 *spl_boot_list)
 void spl_load_error_handler(int bootdev, const char *loader_name)
 {
 	printf("SPL load error: bootdev=%d, loader=%s\n", bootdev, loader_name);
-	switch (bootdev) {
-	case BOOT_DEVICE_NOR:
-		printf("SPI Flash load failed\n");
-		gpio_led_blink_for_nor();
-		break;
-	case BOOT_DEVICE_MMC1:
-	case BOOT_DEVICE_MMC2:
-	case BOOT_DEVICE_NAND:
-	default:
-		printf("%s load failed\n", loader_name);
-		break;
-	}
 }
 
 void spl_perform_fixups(struct spl_image_info *spl_image)
