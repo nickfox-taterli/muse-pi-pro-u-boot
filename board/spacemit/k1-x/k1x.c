@@ -1317,7 +1317,7 @@ static int ft_board_mac_addr_fixup(void *blob, struct bd_info *bd)
 
 int ft_board_setup(void *blob, struct bd_info *bd)
 {
-	struct fdt_memory mem;
+
 	static const struct node_info nodes[] = {
 		{ "spacemit,k1x-qspi", MTD_DEV_TYPE_NOR, },  /* SPI flash */
 	};
@@ -1327,13 +1327,14 @@ int ft_board_setup(void *blob, struct bd_info *bd)
 		BOOT_MODE_NOR == get_boot_mode())
 		fdt_fixup_mtdparts(blob, nodes, ARRAY_SIZE(nodes));
 
-	if (CONFIG_IS_ENABLED(FDT_SIMPLEFB)) {
-		/* reserved with no-map tag the video buffer */
-		mem.start = gd->video_bottom;
-		mem.end = gd->video_top - 1;
+#if CONFIG_IS_ENABLED(FDT_SIMPLEFB)
+	struct fdt_memory mem;
+	/* reserved with no-map tag the video buffer */
+	mem.start = gd->video_bottom;
+	mem.end = gd->video_top - 1;
 
-		fdtdec_add_reserved_memory(blob, "framebuffer", &mem, NULL, 0, NULL, 0);
-	}
+	fdtdec_add_reserved_memory(blob, "framebuffer", &mem, NULL, 0, NULL, 0);
+#endif
 
 	ft_board_cpu_fixup(blob, bd);
 	ft_board_info_fixup(blob, bd);

@@ -1,265 +1,40 @@
 /dts-v1/;
 
 / {
-	description = "U-boot FIT image for k1x";
-	#address-cells = <2>;
-	fit,fdt-list = "of-list";
+    description = "U-boot FIT image for k1x";
+    #address-cells = <2>;
+    fit,fdt-list = "of-list";
 
-	images {
-		uboot {
-			description = "U-Boot";
-			type = "standalone";
-			os = "U-Boot";
-			arch = "riscv";
-			compression = "none";
-			load = <0x0 0x00200000>;
-			data = /incbin/("../u-boot-nodtb.bin");
-			hash-1 {
-				algo = "crc32";
-			};
-		};
+    images {
+        uboot {
+            description = "U-Boot";
+            type = "firmware";
+            os = "u-boot";
+            arch = "riscv";
+            compression = "none";
+            load =  <0x0 0x00200000>;
+            entry = <0x0 0x00200000>;
+            data = /incbin/("../u-boot-nodtb.bin");
+            hash-1 { algo = "crc32"; };
+        };
 
-		fdt_1 {
-			description = "k1-x_deb1";
-			type = "flat_dt";
-			compression = "none";
-			data = /incbin/("../dtb/k1-x_deb1.dtb");
-			hash-1 {
-				algo = "crc32";
-			};
-		};
-		fdt_2 {
-			description = "k1-x_MINI-PC";
-			type = "flat_dt";
-			compression = "none";
-			data = /incbin/("../dtb/k1-x_MINI-PC.dtb");
-			hash-1 {
-				algo = "crc32";
-			};
-		};
-		fdt_3 {
-			description = "k1-x_MUSE-N1";
-			type = "flat_dt";
-			compression = "none";
-			data = /incbin/("../dtb/k1-x_MUSE-N1.dtb");
-			hash-1 {
-				algo = "crc32";
-			};
-		};
-		fdt_4 {
-			description = "k1-x_MUSE-Pi";
-			type = "flat_dt";
-			compression = "none";
-			data = /incbin/("../dtb/k1-x_MUSE-Pi.dtb");
-			hash-1 {
-				algo = "crc32";
-			};
-		};
-		fdt_5 {
-			description = "k1-x_milkv-jupiter";
-			type = "flat_dt";
-			compression = "none";
-			data = /incbin/("../dtb/k1-x_milkv-jupiter.dtb");
-			hash-1 {
-				algo = "crc32";
-			};
-		};
-		fdt_6 {
-			description = "k1-x_MUSE-Book";
-			type = "flat_dt";
-			compression = "none";
-			data = /incbin/("../dtb/k1-x_MUSE-Book.dtb");
-			hash-1 {
-				algo = "crc32";
-			};
-		};
-		fdt_7 {
-			description = "m1-x_milkv-jupiter";
-			type = "flat_dt";
-			compression = "none";
-			data = /incbin/("../dtb/m1-x_milkv-jupiter.dtb");
-			hash-1 {
-				algo = "crc32";
-			};
-		};
-		fdt_8 {
-			description = "k1-x_lpi3a";
-			type = "flat_dt";
-			compression = "none";
-			data = /incbin/("../dtb/k1-x_lpi3a.dtb");
-			hash-1 {
-				algo = "crc32";
-			};
-		};
-		fdt_9 {
-			description = "k1-x_MUSE-Card";
-			type = "flat_dt";
-			compression = "none";
-			data = /incbin/("../dtb/k1-x_MUSE-Card.dtb");
-			hash-1 {
-				algo = "crc32";
-			};
-		};
-		fdt_10 {
-			description = "k1-x_MUSE-Paper-mini-4g";
-			type = "flat_dt";
-			compression = "none";
-			data = /incbin/("../dtb/k1-x_MUSE-Paper-mini-4g.dtb");
-			hash-1 {
-				algo = "crc32";
-			};
-		};
-		fdt_11 {
-			description = "k1-x_ZT001H";
-			type = "flat_dt";
-			compression = "none";
-			data = /incbin/("../dtb/k1-x_ZT001H.dtb");
-			hash-1 {
-				algo = "crc32";
-			};
-		};
-		fdt_12 {
-			description = "k1-x_uav";
-			type = "flat_dt";
-			compression = "none";
-			data = /incbin/("../dtb/k1-x_uav.dtb");
-			hash-1 {
-				algo = "crc32";
-			};
-		};
-		fdt_13 {
-			description = "k1-x_MUSE-Paper2";
-			type = "flat_dt";
-			compression = "none";
-			data = /incbin/("../dtb/k1-x_MUSE-Paper2.dtb");
-			hash-1 {
-				algo = "crc32";
-			};
-		};
-		fdt_14 {
-			description = "k1-x_MUSE-Pi-Pro";
-			type = "flat_dt";
-			compression = "none";
-			data = /incbin/("../dtb/k1-x_MUSE-Pi-Pro.dtb");
-			hash-1 {
-				algo = "crc32";
-			};
-		};
-		fdt_15 {
-			description = "k1-x_LX-V10";
-			type = "flat_dt";
-			compression = "none";
-			data = /incbin/("../dtb/k1-x_LX-V10.dtb");
-			hash-1 {
-				algo = "crc32";
-			};
-		};
-		fdt_16 {
-			description = "k1-x_som";
-			type = "flat_dt";
-			compression = "none";
-			data = /incbin/("../dtb/k1-x_som.dtb");
-			hash-1 {
-				algo = "crc32";
-			};
-		};
-		fdt_17 {
-			description = "k1-x_ZT_RVOH007";
-			type = "flat_dt";
-			compression = "none";
-			data = /incbin/("../dtb/k1-x_ZT_RVOH007.dtb");
-			hash-1 {
-				algo = "crc32";
-			};
-		};
-	};
+        fdt {
+            description = "k1-x_MUSE-Pi-Pro";
+            type = "flat_dt";
+            arch = "riscv";
+            compression = "none";
+            data = /incbin/("../dtb/k1-x_MUSE-Pi-Pro.dtb");
+            hash-1 { algo = "crc32"; };
+        };
+    };
 
-	configurations {
-		default = "conf_1";
-		conf_1 {
-			description = "k1-x_deb1";
-			loadables = "uboot";
-			fdt = "fdt_1";
-		};
-		conf_2 {
-			description = "k1-x_MINI-PC";
-			loadables = "uboot";
-			fdt = "fdt_2";
-		};
-		conf_3 {
-			description = "k1-x_MUSE-N1";
-			loadables = "uboot";
-			fdt = "fdt_3";
-		};
-		conf_4 {
-			description = "k1-x_MUSE-Pi";
-			loadables = "uboot";
-			fdt = "fdt_4";
-		};
-		conf_5 {
-			description = "k1-x_milkv-jupiter";
-			loadables = "uboot";
-			fdt = "fdt_5";
-		};
-		conf_6 {
-			description = "k1-x_MUSE-Book";
-			loadables = "uboot";
-			fdt = "fdt_6";
-		};
-		conf_7 {
-			description = "m1-x_milkv-jupiter";
-			loadables = "uboot";
-			fdt = "fdt_7";
-		};
-		conf_8 {
-			description = "k1-x_lpi3a";
-			loadables = "uboot";
-			fdt = "fdt_8";
-		};
-		conf_9 {
-			description = "k1-x_MUSE-Card";
-			loadables = "uboot";
-			fdt = "fdt_9";
-		};
-		conf_10 {
-			description = "k1-x_MUSE-Paper-mini-4g";
-			loadables = "uboot";
-			fdt = "fdt_10";
-		};
-		conf_11 {
-			description = "k1-x_ZT001H";
-			loadables = "uboot";
-			fdt = "fdt_11";
-		};
-		conf_12 {
-			description = "k1-x_uav";
-			loadables = "uboot";
-			fdt = "fdt_12";
-		};
-		conf_13 {
-			description = "k1-x_MUSE-Paper2";
-			loadables = "uboot";
-			fdt = "fdt_13";
-		};
-		conf_14 {
-			description = "k1-x_MUSE-Pi-Pro";
-			loadables = "uboot";
-			fdt = "fdt_14";
-		};
-		conf_15 {
-			description = "k1-x_LX-V10";
-			loadables = "uboot";
-			fdt = "fdt_15";
-		};
-		conf_16 {
-			description = "k1-x_som";
-			loadables = "uboot";
-			fdt = "fdt_16";
-		};
-		conf_17 {
-			description = "k1-x_ZT_RVOH007";
-			loadables = "uboot";
-			fdt = "fdt_17";
-		};
-	};
+    configurations {
+        default = "conf";
+        conf {
+            description = "k1-x_MUSE-Pi-Pro";
+            firmware  = "uboot";
+            fdt       = "fdt";
+            hash-1 { algo = "crc32"; };
+        };
+    };
 };

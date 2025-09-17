@@ -1001,7 +1001,7 @@ endif
 
 config FDT_SIMPLEFB
 	bool "FDT tools for simplefb support"
-	depends on OF_LIBFDT
+	depends on OF_LIBFDT && VIDEO
 	help
 	  Enable the fdt tools to manage the simple fb nodes in device tree.
 	  These functions can be used by board to indicate to the OS
