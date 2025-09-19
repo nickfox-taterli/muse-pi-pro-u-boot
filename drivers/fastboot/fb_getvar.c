@@ -28,20 +28,70 @@ static void getvar_version_baseband(char *var_parameter, char *response);
 static void getvar_product(char *var_parameter, char *response);
 static void getvar_platform(char *var_parameter, char *response);
 static void getvar_current_slot(char *var_parameter, char *response);
+#if CONFIG_IS_ENABLED(FASTBOOT_FLASH)
+static void getvar_has_slot(char *part_name, char *response);
+#endif
 #if CONFIG_IS_ENABLED(FASTBOOT_FLASH_MMC) || CONFIG_IS_ENABLED(FASTBOOT_MULTI_FLASH_OPTION_MMC)
-	}, {
-		.variable = "partition-type",
-		.dispatch = getvar_partition_type
+static void getvar_partition_type(char *part_name, char *response);
 #endif
 #if CONFIG_IS_ENABLED(FASTBOOT_FLASH)
-	}, {
-		.variable = "partition-size",
-		.dispatch = getvar_partition_size
+static void getvar_partition_size(char *part_name, char *response);
 #endif
-	}, {
-		.variable = "is-userspace",
-		.dispatch = getvar_is_userspace
-	}
+static void getvar_is_userspace(char *var_parameter, char *response);
+
+static const struct {
+        const char *variable;
+        void (*dispatch)(char *var_parameter, char *response);
+} getvar_dispatch[] = {
+        {
+                .variable = "version",
+                .dispatch = getvar_version
+        }, {
+                .variable = "version-bootloader",
+                .dispatch = getvar_version_bootloader
+        }, {
+                .variable = "version-IC",
+                .dispatch = getvar_version_IC
+        }, {
+                .variable = "downloadsize",
+                .dispatch = getvar_downloadsize
+        }, {
+                .variable = "max-download-size",
+                .dispatch = getvar_downloadsize
+        }, {
+                .variable = "serialno",
+                .dispatch = getvar_serialno
+        }, {
+                .variable = "version-baseband",
+                .dispatch = getvar_version_baseband
+        }, {
+                .variable = "product",
+                .dispatch = getvar_product
+        }, {
+                .variable = "platform",
+                .dispatch = getvar_platform
+        }, {
+                .variable = "current-slot",
+                .dispatch = getvar_current_slot
+#if CONFIG_IS_ENABLED(FASTBOOT_FLASH)
+        }, {
+                .variable = "has-slot",
+                .dispatch = getvar_has_slot
+#endif
+#if CONFIG_IS_ENABLED(FASTBOOT_FLASH_MMC) || CONFIG_IS_ENABLED(FASTBOOT_MULTI_FLASH_OPTION_MMC)
+        }, {
+                .variable = "partition-type",
+                .dispatch = getvar_partition_type
+#endif
+#if CONFIG_IS_ENABLED(FASTBOOT_FLASH)
+        }, {
+                .variable = "partition-size",
+                .dispatch = getvar_partition_size
+#endif
+        }, {
+                .variable = "is-userspace",
+                .dispatch = getvar_is_userspace
+        }
 };
 
 #if CONFIG_IS_ENABLED(FASTBOOT_FLASH)
