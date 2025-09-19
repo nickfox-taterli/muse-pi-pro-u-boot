@@ -7,7 +7,7 @@ sudo apt-get update && sudo apt-get install -y \
   python3 swig lz4 lzop zlib1g-dev
 ```
 
-## 工具链
+## 工具链(解压可能需要一分钟)
 
 ```bash
 TOOLCHAIN_URL="https://static.taterli.cyou/files/spacemit-toolchain-linux-glibc-x86_64-v1.1.2.tar.xz"
@@ -30,3 +30,4 @@ make -j"$(nproc)" CROSS_COMPILE="${CROSS_COMPILE}"
 
 * u-boot.itb 可用,大小没明显异常(常规产物 >200K && < 2MB)
 * dumpimage -l u-boot.itb 可见RISC-V架构.
+* 如果无法编译通过,请考虑修改C代码直到成功.
