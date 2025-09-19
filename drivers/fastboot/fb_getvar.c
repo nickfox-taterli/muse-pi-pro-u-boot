@@ -28,6 +28,8 @@ static void getvar_version_baseband(char *var_parameter, char *response);
 static void getvar_product(char *var_parameter, char *response);
 static void getvar_platform(char *var_parameter, char *response);
 static void getvar_current_slot(char *var_parameter, char *response);
+static void getvar_mtd_size(char *var_parameter, char *response);
+static void getvar_blk_size(char *var_parameter, char *response);
 #if CONFIG_IS_ENABLED(FASTBOOT_FLASH)
 static void getvar_has_slot(char *part_name, char *response);
 #endif
@@ -73,6 +75,12 @@ static const struct {
         }, {
                 .variable = "current-slot",
                 .dispatch = getvar_current_slot
+		}, {
+				.variable = "mtd-size",
+				.dispatch = getvar_mtd_size 
+		}, {
+				.variable = "blk-size",
+				.dispatch = getvar_blk_size 
 #if CONFIG_IS_ENABLED(FASTBOOT_FLASH)
         }, {
                 .variable = "has-slot",
@@ -225,6 +233,17 @@ static void getvar_current_slot(char *var_parameter, char *response)
 {
 	/* A/B not implemented, for now always return "a" */
 	fastboot_okay("a", response);
+}
+
+// 为了兼容官方烧录工具而设计,返回只要是2M/4M/8M都会通过检查.
+static void getvar_mtd_size(char *var_parameter, char *response)
+{
+	fastboot_response("OKAY", response, "8M");
+}
+
+static void getvar_blk_size(char *var_parameter, char *response)
+{
+	fastboot_okay("universal", response);
 }
 
 #if CONFIG_IS_ENABLED(FASTBOOT_FLASH)
