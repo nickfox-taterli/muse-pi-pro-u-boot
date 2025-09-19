@@ -82,19 +82,13 @@
 #define MMC1_CLK_OFFSET    0x14
 
 extern int __data_start[], __data_end[];
-extern int get_tlvinfo(uint8_t id, uint8_t *buffer, int max_size);
-extern bool get_mac_address(uint64_t *mac_addr);
-extern char *get_product_name(void);
-extern void update_ddr_info(void);
 extern enum board_boot_mode get_boot_storage(void);
 extern ulong read_boot_storage(void *buff, ulong offset, ulong byte_size);
 extern int dram_init_banksize(void);
 extern void spl_fixup_fdt(void *fdt_blob);
 
 char *product_name;
-extern u32 ddr_cs_num, ddr_datarate, ddr_tx_odt;
 extern const char *ddr_type;
-
 
 /* GPIO definitions */
 #define GPIO_OUTPUT     1
@@ -287,47 +281,9 @@ int load_chipid_from_efuse(uint64_t *chipid)
 }
 #endif
 
-static void load_default_board_config(int *eeprom_i2c_index,
-		int *eeprom_pin_group, int *pmic_type)
-{
-	char *temp;
-
-	temp = env_get("eeprom_i2c_index");
-	if (NULL != temp)
-		*eeprom_i2c_index = dectoul(temp, NULL);
-	else
-		*eeprom_i2c_index = K1_DEFALT_EEPROM_I2C_INDEX;
-
-	temp = env_get("eeprom_pin_group");
-	if (NULL != temp)
-		*eeprom_pin_group = dectoul(temp, NULL);
-	else
-		*eeprom_pin_group = K1_DEFALT_EEPROM_PIN_GROUP;
-
-	temp = env_get("pmic_type");
-	if (NULL != temp)
-		*pmic_type = dectoul(temp, NULL);
-	else
-		*pmic_type = K1_DEFALT_PMIC_TYPE;
-}
-
 #if CONFIG_IS_ENABLED(SPACEMIT_POWER)
 extern int board_pmic_init(void);
 #endif
-
-void load_board_config(int *eeprom_i2c_index, int *eeprom_pin_group, int *pmic_type)
-{
-	load_default_board_config(eeprom_i2c_index, eeprom_pin_group, pmic_type);
-
-#if CONFIG_IS_ENABLED(SPACEMIT_K1X_EFUSE)
-	/* update env from efuse data */
-	load_board_config_from_efuse(eeprom_i2c_index, eeprom_pin_group, pmic_type);
-#endif
-
-	pr_debug("eeprom_i2c_index :%d\n", *eeprom_i2c_index);
-	pr_debug("eeprom_pin_group :%d\n", *eeprom_pin_group);
-	pr_debug("pmic_type :%d\n", *pmic_type);
-}
 
 bool restore_ddr_training_info(uint64_t chipid, uint64_t mac_addr)
 {
@@ -417,7 +373,6 @@ int spl_board_init_f(void)
 #endif
 	// get_mac_address(&mac_addr);
 
-	update_ddr_info();
 
 	// restore prevous saved ddr training info data
 	// flag = restore_ddr_training_info(chipid, mac_addr);
@@ -445,7 +400,7 @@ int spl_board_init_f(void)
 	}
 
 	// update_ddr_training_info(chipid, mac_addr);
-	update_ddr_config_info(ddr_cs_num);
+	update_ddr_config_info(2); // ddr_cs_num=2
 	timer_init();
 
 	return 0;
@@ -474,34 +429,6 @@ void board_init_f(ulong dummy)
 	if (ret)
 		panic("spl_board_init_f() failed: %d\n", ret);
 }
-
-#ifdef CONFIG_SPL_LOAD_FIT
-int board_fit_config_name_match(const char *name)
-{
-	char *buildin_name;
-	char tmp_name[64];
-
-	buildin_name = product_name;
-	if (NULL == buildin_name)
-		buildin_name = DEFAULT_PRODUCT_NAME;
-
-	/*
-		be compatible to previous format name,
-		such as: k1_deb1 -> k1-x_deb1
-	*/
-	if (!strncmp(buildin_name, "k1_", 3)){
-		sprintf(tmp_name, "%s_%s", "k1-x", &buildin_name[3]);
-		buildin_name = tmp_name;
-	}
-
-	if ((NULL != buildin_name) && (0 == strcmp(buildin_name, name))) {
-		log_emerg("Boot from fit configuration %s\n", name);
-		return 0;
-	}
-	else
-		return -1;
-}
-#endif
 
 static struct env_driver *_spl_env_driver_lookup(enum env_location loc)
 {
@@ -588,74 +515,10 @@ static void spl_load_env(void)
 	}
 }
 
-bool get_mac_address(uint64_t *mac_addr)
-{
-	if ((NULL != mac_addr) &&
-		(get_tlvinfo(TLV_CODE_MAC_BASE, (uint8_t*)mac_addr, 6)) > 0) {
-		pr_info("Get mac address %llx from eeprom\n", *mac_addr);
-		return true;
-	}
-
-	return false;
-}
-
-char *get_product_name(void)
-{
-	char *name = NULL;
-
-	name = calloc(1, 64);
-	if ((NULL != name) &&
-		(get_tlvinfo(TLV_CODE_PRODUCT_NAME, name, 64)) > 0) {
-		pr_info("Get product name from eeprom %s\n", name);
-		return name;
-	}
-
-	if (NULL != name)
-		free(name);
-
-	pr_debug("Use default product name %s\n", DEFAULT_PRODUCT_NAME);
-	return NULL;
-}
-
-void update_ddr_info(void)
-{
-	uint8_t *info;
-
-	ddr_cs_num = 0;
-	ddr_datarate = 0;
-	ddr_tx_odt = 0;
-	ddr_type = NULL;
-
-	// read ddr type from eeprom
-	info = malloc(32);
-	memset(info, 0, 32);
-	if (get_tlvinfo(TLV_CODE_DDR_TYPE, info, 32) > 0)
-		ddr_type = info;
-	else
-		free(info);
-
-	// if fail to get ddr cs number from eeprom, update it from dts node
-	if (get_tlvinfo(TLV_CODE_DDR_CSNUM, (uint8_t*)&ddr_cs_num, 1) > 0)
-		pr_info("Get ddr cs num %d from eeprom\n", ddr_cs_num);
-
-	// if fail to get ddr cs number from eeprom, update it from dts node
-	if (get_tlvinfo(TLV_CODE_DDR_DATARATE, (uint8_t*)&ddr_datarate, 2) > 0) {
-		// convert it from big endian to little endian
-		ddr_datarate = be16_to_cpu(ddr_datarate);
-		pr_info("Get ddr datarate %d from eeprom\n", ddr_datarate);
-	}
-
-	// if fail to get ddr tx odt from eeprom, update it from dts node
-	if (get_tlvinfo(TLV_CODE_DDR_TX_ODT, (uint8_t*)&ddr_tx_odt, 1) > 0) {
-		pr_info("Get ddr tx odt(%dohm) from eeprom\n", ddr_tx_odt);
-	}
-}
-
 void spl_board_init(void)
 {
 	/*load env*/
 	spl_load_env();
-	product_name = get_product_name();
 }
 
 struct image_header *spl_get_load_buffer(ssize_t offset, size_t size)

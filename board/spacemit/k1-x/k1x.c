@@ -51,17 +51,11 @@ struct fastboot_key_config {
 };
 #endif
 
-extern int get_tlvinfo(uint8_t id, uint8_t *buffer, int max_size);
-extern int set_tlvinfo(int tcode, char* val);
-extern int flush_tlvinfo(void);
-extern int update_tlvinfo(void);
-
 DECLARE_GLOBAL_DATA_PTR;
 static char found_partition[64] = {0};
 extern u32 ddr_cs_num;
 bool is_video_connected = false;
 uint32_t reboot_config;
-void refresh_config_info(void);
 
 void set_boot_mode(enum board_boot_mode boot_mode)
 {
@@ -301,19 +295,6 @@ void save_ddr_training_info(void)
 	}
 }
 
-void get_ddr_config_info(void)
-{
-	struct ddr_training_info_t *info;
-	info = (struct ddr_training_info_t*)map_sysmem(DDR_TRAINING_INFO_BUFF, 0);
-
-	if ((DDR_TRAINING_INFO_MAGIC == info->magic) &&
-		(info->crc32 == crc32(0, (const uchar *)&info->chipid, sizeof(*info) - 8))) {
-		// get DDR cs number that is update in spl stage
-		ddr_cs_num = info->cs_num;
-	}
-	else
-		ddr_cs_num = DDR_CS_NUM;
-}
 
 u32 get_reboot_config(void)
 {
@@ -484,10 +465,6 @@ void run_fastboot_command(void)
 
 		char *cmd_para = "fastboot 0";
 		run_command(cmd_para, 0);
-
-		/*read from eeprom and update info to env*/
-		update_tlvinfo();
-		refresh_config_info();
 	}
 }
 
@@ -500,44 +477,6 @@ int run_uboot_shell(void)
 		return 0;
 	}
 	return 1;
-}
-
-void _load_env_from_blk(struct blk_desc *dev_desc, const char *dev_name, int dev)
-{
-	int err;
-	u32 part;
-	char cmd[128];
-	struct disk_partition info;
-
-	for (part = 1; part <= MAX_SEARCH_PARTITIONS; part++) {
-		err = part_get_info(dev_desc, part, &info);
-		if (err)
-			continue;
-		if (!strcmp(BOOTFS_NAME, info.name)){
-			pr_debug("match info.name:%s\n", info.name);
-			break;
-		}
-	}
-	if (part > MAX_SEARCH_PARTITIONS)
-		return;
-
-	env_set("bootfs_part", simple_itoa(part));
-	env_set("bootfs_devname", dev_name);
-
-	/*load env.txt and import to uboot*/
-	memset((void *)CONFIG_SPL_LOAD_FIT_ADDRESS, 0, CONFIG_ENV_SIZE);
-	sprintf(cmd, "load %s %d:%d 0x%x env_%s.txt", dev_name,
-			dev, part, CONFIG_SPL_LOAD_FIT_ADDRESS, CONFIG_SYS_CONFIG_NAME);
-	pr_debug("cmd:%s\n", cmd);
-	if (run_command(cmd, 0))
-		return;
-
-	memset(cmd, '\0', 128);
-	sprintf(cmd, "env import -t 0x%x", CONFIG_SPL_LOAD_FIT_ADDRESS);
-	pr_debug("cmd:%s\n", cmd);
-	if (!run_command(cmd, 0)){
-		pr_info("load env_%s.txt from bootfs successful\n", CONFIG_SYS_CONFIG_NAME);
-	}
 }
 
 char* parse_mtdparts_and_find_bootfs(void) {
@@ -589,101 +528,6 @@ char* parse_mtdparts_and_find_bootfs(void) {
 	return NULL;
 }
 
-void import_env_from_bootfs(void)
-{
-	u32 boot_mode = get_boot_mode();
-
-#ifdef CONFIG_ENV_IS_IN_NFS
-	// Check if local bootfs exists
-	if ((BOOT_MODE_USB != boot_mode) && check_bootfs_exists() != 0) {
-		#ifdef CONFIG_CMD_NET
-			eth_initialize();
-		#endif
-		// Local bootfs not found, try to load from NFS
-		if (load_env_from_nfs() == 0) {
-			return;
-		}
-	}
-#endif
-
-	switch (boot_mode) {
-	case BOOT_MODE_NAND:
-#if CONFIG_IS_ENABLED(ENV_IS_IN_MTD)
-		/*load env from nand bootfs*/
-		const char *bootfs_name = BOOTFS_NAME ;
-		char cmd[128];
-
-		if (!bootfs_name) {
-			pr_err("bootfs not set\n");
-			return;
-		}
-
-		/* Parse mtdparts to find the partition containing the BOOTFS_NAME volume */
-		char *mtd_partition   = parse_mtdparts_and_find_bootfs();
-		if (!mtd_partition  ) {
-			pr_err("Bootfs not found in any partition\n");
-			return;
-		}
-
-		sprintf(cmd, "ubifsmount ubi0:%s", bootfs_name);
-		if (run_command(cmd, 0)) {
-			pr_err("Cannot mount ubifs partition '%s'\n", bootfs_name);
-			return;
-		}
-
-		memset((void *)CONFIG_SPL_LOAD_FIT_ADDRESS, 0, CONFIG_ENV_SIZE);
-		sprintf(cmd, "ubifsload 0x%x env_%s.txt", CONFIG_SPL_LOAD_FIT_ADDRESS, CONFIG_SYS_CONFIG_NAME);
-		if (run_command(cmd, 0)) {
-			pr_err("Failed to load env_%s.txt from bootfs\n", CONFIG_SYS_CONFIG_NAME);
-			return;
-		}
-
-		memset(cmd, '\0', 128);
-		sprintf(cmd, "env import -t 0x%x", CONFIG_SPL_LOAD_FIT_ADDRESS);
-		if (!run_command(cmd, 0)) {
-			pr_err("Imported environment from 'env_k1-x.txt'\n");
-		}
-#endif
-		break;
-	case BOOT_MODE_NOR:
-		struct blk_desc *dev_desc;
-		char *blk_name;
-		int blk_index;
-
-		if (get_available_boot_blk_dev(&blk_name, &blk_index)){
-			printf("can not get available blk dev\n");
-			return;
-		}
-
-		dev_desc = blk_get_dev(blk_name, blk_index);
-		if (dev_desc)
-			_load_env_from_blk(dev_desc, blk_name, blk_index);
-		break;
-	case BOOT_MODE_EMMC:
-	case BOOT_MODE_SD:
-#ifdef CONFIG_MMC
-		int dev;
-		struct mmc *mmc;
-
-		dev = mmc_get_env_dev();
-		mmc = find_mmc_device(dev);
-		if (!mmc) {
-			pr_err("Cannot find mmc device\n");
-			return;
-		}
-		if (mmc_init(mmc)){
-			return;
-		}
-
-		_load_env_from_blk(mmc_get_blk_desc(mmc), "mmc", dev);
-		break;
-#endif
-	default:
-		break;
-	}
-	return;
-}
-
 void run_cardfirmware_flash_command(void)
 {
 	struct mmc *mmc;
@@ -721,183 +565,10 @@ void run_cardfirmware_flash_command(void)
 	return;
 }
 
-void setenv_boot_mode(void)
-{
-#ifdef CONFIG_ENV_IS_IN_NFS
-	const char *boot_override = env_get("boot_override");
-
-	if (boot_override) {
-		env_set("boot_device", boot_override);
-		env_set("boot_override", NULL);
-		return;
-	}
-#endif
-
-	u32 boot_mode = get_boot_mode();
-	switch (boot_mode) {
-	case BOOT_MODE_NAND:
-		env_set("boot_device", "nand");
-		break;
-	case BOOT_MODE_NOR:
-		char *blk_name;
-		int blk_index;
-
-		if (get_available_boot_blk_dev(&blk_name, &blk_index)){
-			printf("can not get available blk dev\n");
-			return;
-		}
-
-		env_set("boot_device", "nor");
-		env_set("boot_devnum", simple_itoa(blk_index));
-		break;
-	case BOOT_MODE_EMMC:
-		env_set("boot_device", "mmc");
-		env_set("boot_devnum", simple_itoa(MMC_DEV_EMMC));
-		break;
-	case BOOT_MODE_SD:
-		env_set("boot_device", "mmc");
-		env_set("boot_devnum", simple_itoa(MMC_DEV_SD));
-		break;
-	case BOOT_MODE_USB:
-		// for fastboot image download and run test
-		env_set("bootcmd", CONFIG_BOOTCOMMAND);
-		break;
-	default:
-		env_set("boot_device", "");
-		break;
-	}
-}
-
-static void increase_eth_addr(uint8_t *mac_addr)
-{
-	mac_addr[5]++;
-	if (0 == mac_addr[5]) {
-		mac_addr[4]++;
-		if (0 == mac_addr[4]) {
-			mac_addr[3]++;
-		}
-	}
-}
-
-int read_mac_from_tlv(void)
-{
-	unsigned int i;
-	uint32_t mac_size;
-	u8 macbase[6];
-	int maccount;
-
-	maccount = 1;
-	if (get_tlvinfo(TLV_CODE_MAC_SIZE, (char*)&mac_size, 2) > 0) {
-		maccount = be16_to_cpu(mac_size);
-	}
-
-	if ((get_tlvinfo(TLV_CODE_MAC_BASE, (char*)macbase, 6) <= 0)
-		|| !is_valid_ethaddr(macbase)) {
-		return 0;
-	}
-
-	for (i = 0; i < maccount; i++) {
-		char ethaddr[18];
-		char enetvar[11];
-
-		sprintf(ethaddr, "%02X:%02X:%02X:%02X:%02X:%02X",
-			macbase[0], macbase[1], macbase[2],
-			macbase[3], macbase[4], macbase[5]);
-		sprintf(enetvar, i ? "eth%daddr" : "ethaddr", i);
-		/* Only initialize environment variables that are blank
-			* (i.e. have not yet been set)
-			*/
-		if (!env_get(enetvar))
-			env_set(enetvar, ethaddr);
-
-		increase_eth_addr(macbase);
-	}
-
-	return maccount;
-}
-
-void set_dev_serial_no(void)
-{
-	char serial[64];
-
-	memset(serial, 0, sizeof(serial));
-	if (get_tlvinfo(TLV_CODE_SERIAL_NUMBER, serial, sizeof(serial)) > 0) {
-		pr_info("Serial number is valid.\n");
-		env_set("serial#", serial);
-	}
-}
-
 struct code_desc_info {
 	u8	m_code;
 	char	*m_name;
 };
-
-void refresh_config_info(void)
-{
-	char *strval = malloc(64);
-	int i, num, ret;
-
-	const struct code_desc_info {
-		u8    m_code;
-		u8    is_data;
-		char *m_name;
-	} info[] = {
-		{ TLV_CODE_PRODUCT_NAME,   false, "product_name"},
-		{ TLV_CODE_PART_NUMBER,    false, "part#"},
-		{ TLV_CODE_SERIAL_NUMBER,  false, "serial#"},
-		{ TLV_CODE_MANUF_DATE,     false, "manufacture_date"},
-		{ TLV_CODE_MANUF_NAME,     false, "manufacturer"},
-		{ TLV_CODE_DDR_TYPE,       false, "ddr_type"},
-		{ TLV_CODE_WIFI_MAC_ADDR,  false, "wifi_addr"},
-		{ TLV_CODE_BLUETOOTH_ADDR, false, "bt_addr"},
-		{ TLV_CODE_DEVICE_VERSION, true,  "device_version"},
-		{ TLV_CODE_SDK_VERSION,    true,  "sdk_version"},
-		{ TLV_CODE_DDR_CSNUM,      true,  "ddr_cs_num"},
-		{ TLV_CODE_DDR_DATARATE,   true,  "ddr_datarate"},
-		{ TLV_CODE_DDR_TX_ODT,     true,  "ddr_tx_odt"},
-	};
-
-	for (i = 0; i < ARRAY_SIZE(info); i++) {
-		ret = get_tlvinfo(info[i].m_code, strval, 64);
-		if (ret <= 0) {
-			continue;
-		}
-
-		if (info[i].is_data) {
-			num = 0;
-			// Convert the numeric value to string
-			for (int j = 0; j < ret && j < sizeof(num); j++) {
-				num = (num << 8) | strval[j];
-			}
-			sprintf(strval, "%d", num);
-		} else {
-			strval[ret] = '\0';
-		}
-		pr_info("TLV item: %s = %s\n", info[i].m_name, strval);
-		env_set(info[i].m_name, strval);
-	}
-
-	free(strval);
-}
-
-void set_data_buffer_env(void)
-{
-	u64 dram_size = (u64)ddr_get_density() * SZ_1MB, fastboot_buffer_size;
-	char temp[32];
-
-	if (dram_size < SZ_1G) {
-		pr_info("Need shrink data buffer for DDR capacity: %llu MB\n", dram_size / SZ_1MB);
-		// 1/4 of dram as fastboot buffer, 1/4 of dram as decompression buffer
-		fastboot_buffer_size = dram_size / 4;
-		env_set_hex("fastboot_buffer_size", fastboot_buffer_size);
-		env_set_hex("decompress_addr", CONFIG_FASTBOOT_BUF_ADDR + fastboot_buffer_size);
-
-		sprintf(temp, "0x%llx", CONFIG_FASTBOOT_BUF_ADDR + fastboot_buffer_size);
-		env_set("ramdisk_addr", temp);
-		sprintf(temp, "0x%llx", CONFIG_FASTBOOT_BUF_ADDR + fastboot_buffer_size * 2);
-		env_set("dtb_addr", temp);
-	}
-}
 
 static int probe_shutdown_charge(void)
 {
@@ -942,45 +613,11 @@ int board_late_init(void)
 	char ram_size_str[16] = {"\0"};
 	int ret;
 
-	// save_ddr_training_info();
-
-	// it MAY be NULL when did NOT load build-in env and eeprom is empty
-	if (NULL == env_get("product_name"))
-		env_set("product_name", DEFAULT_PRODUCT_NAME);
-
-	set_dev_serial_no();
-	refresh_config_info();
-	set_data_buffer_env();
-
-	set_serialnumber_based_on_boot_mode();
-
-#ifdef CONFIG_VIDEO_SPACEMIT
-	ret = uclass_probe_all(UCLASS_VIDEO);
-	if (ret) {
-		pr_info("video devices not found or not probed yet: %d\n", ret);
-	}
-	ret = uclass_probe_all(UCLASS_DISPLAY);
-	if (ret) {
-		pr_info("display devices not found or not probed yet: %d\n", ret);
-	}
-#endif
-
-#ifdef CONFIG_BUTTON
-	ret = uclass_probe_all(UCLASS_BUTTON);
-	if (ret) {
-		pr_err("Failed to probe all buttons: %d\n", ret);
-	} else {
-		pr_info("All buttons probed successfully\n");
-	}
-#endif
+	// set_serialnumber_based_on_boot_mode();
 
 	run_fastboot_command();
 
 	run_cardfirmware_flash_command();
-
-#ifdef CONFIG_ENV_IS_IN_NFS
-	run_net_flash_command();
-#endif
 
 	probe_shutdown_charge();
 
@@ -990,14 +627,9 @@ int board_late_init(void)
 		return 0;
 	}
 
-	/*import env.txt from bootfs*/
-	import_env_from_bootfs();
-
 	if (!is_video_connected) {
 		env_set("stdout", "serial");
 	}
-
-	setenv_boot_mode();
 
 	/*save ram size to env, transfer to MB*/
 	sprintf(ram_size_str, "mem=%dMB", (int)(gd->ram_size / SZ_1MB));
@@ -1076,7 +708,6 @@ int misc_init_r(void)
 
 int dram_init(void)
 {
-	get_ddr_config_info();
 	u64 dram_size = (u64)ddr_get_density() * SZ_1MB;
 
 	gd->ram_base = CONFIG_SYS_SDRAM_BASE;
@@ -1115,30 +746,6 @@ ulong board_get_usable_ram_top(ulong total_size)
 		return dram_size;
 	}
 }
-
-#if !defined(CONFIG_SPL_BUILD)
-int board_fit_config_name_match(const char *name)
-{
-	char tmp_name[64];
-	char *product_name = env_get("product_name");
-
-	/*
-		be compatible to previous format name,
-		such as: k1_deb1 -> k1-x_deb1
-	*/
-	if (!strncmp(product_name, "k1_", 3)){
-		sprintf(tmp_name, "%s_%s", "k1-x", &product_name[3]);
-		product_name = tmp_name;
-	}
-
-	if ((NULL != product_name) && (0 == strcmp(product_name, name))) {
-		log_emerg("Boot from fit configuration %s\n", name);
-		return 0;
-	}
-	else
-		return -1;
-}
-#endif
 
 static uint32_t get_dro_from_efuse(void)
 {

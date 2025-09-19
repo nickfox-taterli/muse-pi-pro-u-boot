@@ -878,20 +878,10 @@ const struct oem_config_info config_info[] = {
 	{ "part#", TLV_CODE_PART_NUMBER, 32, NULL },
 	{ "serial#", TLV_CODE_SERIAL_NUMBER, 32, NULL },
 	{ "ethaddr", TLV_CODE_MAC_BASE, 17, NULL },
-	{ "wifi_addr", TLV_CODE_WIFI_MAC_ADDR, 17, NULL },
-	{ "bt_addr", TLV_CODE_BLUETOOTH_ADDR, 17, NULL },
 	{ "ethsize", TLV_CODE_MAC_SIZE, 6, NULL },/*size must equal or less than 65535*/
 	{ "manufacture_date", TLV_CODE_MANUF_DATE, 19, NULL },
 	{ "device_version", TLV_CODE_DEVICE_VERSION, 3, NULL },
-	{ "manufacturer", TLV_CODE_MANUF_NAME, 32, NULL },
-	{ "sdk_version", TLV_CODE_SDK_VERSION, 3, NULL},
-	{ "ddr_cs_num", TLV_CODE_DDR_CSNUM, 3, NULL},
-	{ "ddr_datarate", TLV_CODE_DDR_DATARATE, 5, NULL},
-	{ "ddr_tx_odt", TLV_CODE_DDR_TX_ODT, 3, NULL},
-	{ "ddr_type", TLV_CODE_DDR_TYPE, 32, NULL},
-	{ "pmic_type", TLV_CODE_PMIC_TYPE, 3, NULL},
-	{ "eeprom_i2c_index", TLV_CODE_EEPROM_I2C_INDEX, 3, NULL},
-	{ "eeprom_pin_group", TLV_CODE_EEPROM_PIN_GROUP, 3, NULL},
+	{ "manufacturer", TLV_CODE_MANUF_NAME, 32, NULL }
 };
 
 static int write_config_info_to_eeprom(uint32_t id, char *value)
@@ -905,37 +895,6 @@ static int write_config_info_to_eeprom(uint32_t id, char *value)
 	else
 		return -1;
 }
-
-#if CONFIG_IS_ENABLED(SPACEMIT_K1X_EFUSE)
-static int write_config_info_to_efuse(uint32_t id, char *value)
-{
-	struct udevice *dev;
-	uint8_t fuses[2];
-	int ret;
-
-	/* retrieve the device */
-	ret = uclass_get_device_by_driver(UCLASS_MISC,
-					  DM_DRIVER_GET(spacemit_k1x_efuse), &dev);
-	if (ret) {
-		return ret;
-	}
-
-	memset(fuses, 0, sizeof(fuses));
-	if (TLV_CODE_PMIC_TYPE == id)
-		fuses[1] |= dectoul(value, NULL) & 0x0F;
-	else if (TLV_CODE_EEPROM_I2C_INDEX == id)
-		fuses[0] |= dectoul(value, NULL) & 0x0F;
-	else if (TLV_CODE_EEPROM_PIN_GROUP == id)
-		fuses[0] |= (dectoul(value, NULL) & 0x03) << 4;
-	else {
-		pr_err("NOT support efuse ID %d\n", id);
-		return EFAULT;
-	}
-
-	// write to efuse, each bank has 32byte efuse data
-	return misc_write(dev, K1_EFUSE_USER_BANK0 * 32, fuses, sizeof(fuses));
-}
-#endif
 
 static struct oem_config_info* get_config_info(char *key)
 {
@@ -989,10 +948,6 @@ static void write_oem_configuration(char *config, char *response)
 
 	if (0 == strcmp(dest, "eeprom"))
 		config_write = write_config_info_to_eeprom;
-#if CONFIG_IS_ENABLED(SPACEMIT_K1X_EFUSE)
-	else if (0 == strcmp(dest, "efuse"))
-		config_write = write_config_info_to_efuse;
-#endif
 	else {
 		fastboot_fail("NOT support destination", response);
 		return;

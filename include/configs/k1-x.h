@@ -20,7 +20,7 @@
 #define RISCV_SMODE_TIMER_FREQ	24000000
 #define RISCV_TIMER_FREQ	(RISCV_SMODE_TIMER_FREQ)
 
-#define DEFAULT_PRODUCT_NAME	"k1-x_deb1"
+#define DEFAULT_PRODUCT_NAME	"k1-x"
 
 #define DDR_TRAINING_DATA_BASE	(0xc0832000)
 
@@ -82,29 +82,6 @@
 
 // non-reset register in P1
 #define P1_NON_RESET_REG	(0xAB)
-
-#define K1_EFUSE_USER_BANK0		8
-#define K1_DEFALT_PMIC_TYPE		0
-#define K1_DEFALT_EEPROM_I2C_INDEX	2
-#define K1_DEFALT_EEPROM_PIN_GROUP	0
-
-#define TLV_CODE_SDK_VERSION		0x40
-#define TLV_CODE_DDR_CSNUM		0x41
-#define TLV_CODE_DDR_TYPE		0x42
-#define TLV_CODE_DDR_DATARATE		0x43
-#define TLV_CODE_DDR_TX_ODT		0x44
-
-#define TLV_CODE_WIFI_MAC_ADDR		0x60
-#define TLV_CODE_BLUETOOTH_ADDR	0x61
-
-#define TLV_CODE_PMIC_TYPE		0x80
-#define TLV_CODE_EEPROM_I2C_INDEX	0x81
-#define TLV_CODE_EEPROM_PIN_GROUP	0x82
-
-// #define RAMDISK_LOAD_ADDR		(CONFIG_FASTBOOT_BUF_ADDR + CONFIG_FASTBOOT_BUF_SIZE)
-// #define DTB_LOAD_ADDR		(CONFIG_FASTBOOT_BUF_ADDR + CONFIG_FASTBOOT_BUF_SIZE * 2)
-#define RAMDISK_LOAD_ADDR		0x21000000
-#define DTB_LOAD_ADDR			0x31000000
 
 // for those has NOT been through test procedure(ATE)
 #define SVT_DRO_DEFAULT_VALUE	(120)
@@ -178,23 +155,10 @@ enum private_part_offset {
 	"qemu "
 
 #define BOOTENV_DEVICE_CONFIG \
-	"product_name=" DEFAULT_PRODUCT_NAME "\0" \
-	"serial#=BPMIM102080640017A\0" \
-	"manufacturer=" CONFIG_SYS_VENDOR "\0" \
-	"manufacture_date=01/16/2023 11:02:20\0" \
-	"device_version=1\0" \
-	"sdk_version=1\0" \
-	"pmic_type=" __stringify(K1_DEFALT_PMIC_TYPE) "\0" \
-	"eeprom_i2c_index=" __stringify(K1_DEFALT_EEPROM_I2C_INDEX) "\0" \
-	"eeprom_pin_group=" __stringify(K1_DEFALT_EEPROM_PIN_GROUP) "\0"
+	"serial#=BPMIM102080640017A\0"
 
 /*if env not use for spl, please define to board/spacemit/k1-x/k1-x.env */
 #define CONFIG_EXTRA_ENV_SETTINGS \
-	"kernel_comp_addr_r=" __stringify(CONFIG_SYS_LOAD_ADDR) "\0" \
-	"kernel_comp_size=" __stringify(CONFIG_FASTBOOT_BUF_SIZE) "\0" \
-	"kernel_addr_r=" __stringify(CONFIG_FASTBOOT_BUF_ADDR) "\0" \
-	"ramdisk_addr=" __stringify(RAMDISK_LOAD_ADDR) "\0" \
-	"dtb_addr=" __stringify(DTB_LOAD_ADDR) "\0" \
 	"scriptaddr=0x2c100000\0" \
 	BOOTENV_DEVICE_CONFIG
 
