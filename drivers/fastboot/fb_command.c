@@ -15,10 +15,14 @@
 #include <stdlib.h>
 #include <spl.h>
 #include <image.h>
-#include <fb_spacemit.h>
 #include <fb_mtd.h>
 #include <fb_blk.h>
 #include <dm.h>
+
+#if defined(CONFIG_TARGET_SPACEMIT_K1X)
+#include <configs/k1-x.h>
+enum board_boot_mode get_boot_pin_select(void);
+#endif
 
 /**
  * image_size - final fastboot image size
@@ -450,40 +454,60 @@ void fastboot_data_complete(char *response)
  */
 static void flash(char *cmd_parameter, char *response)
 {
-	u32 boot_mode = get_boot_pin_select();
+#if defined(CONFIG_TARGET_SPACEMIT_K1X)
+        u32 boot_mode = get_boot_pin_select();
 
-	switch(boot_mode){
+        switch (boot_mode) {
 #if CONFIG_IS_ENABLED(FASTBOOT_FLASH_MTD) || CONFIG_IS_ENABLED(FASTBOOT_MULTI_FLASH_OPTION_MTD)
-	case BOOT_MODE_NOR:
-	case BOOT_MODE_NAND:
-		static bool mtd_flash = false;
-		if (!strncmp("mtd", cmd_parameter, 3))
-			mtd_flash = true;
-		if (!strncmp("gpt", cmd_parameter, 3))
-			mtd_flash = false;
+        case BOOT_MODE_NOR:
+        case BOOT_MODE_NAND:
+        {
+                static bool mtd_flash;
 
-		if (mtd_flash){
-			fastboot_mtd_flash_write(cmd_parameter, fastboot_buf_addr, image_size,
-						response);
-		}else{
-			/* flash blk dev */
-			fastboot_blk_flash_write(cmd_parameter, fastboot_buf_addr, image_size, response);
-		}
+                if (!strncmp("mtd", cmd_parameter, 3))
+                        mtd_flash = true;
+                if (!strncmp("gpt", cmd_parameter, 3))
+                        mtd_flash = false;
 
-		return;
+                if (mtd_flash) {
+                        fastboot_mtd_flash_write(cmd_parameter, fastboot_buf_addr,
+                                                 image_size, response);
+                } else {
+                        fastboot_blk_flash_write(cmd_parameter, fastboot_buf_addr,
+                                                 image_size, response);
+                }
+
+                return;
+        }
 #endif
-	case BOOT_MODE_EMMC:
-	case BOOT_MODE_SD:
+        case BOOT_MODE_EMMC:
+        case BOOT_MODE_SD:
 #if CONFIG_IS_ENABLED(FASTBOOT_FLASH_MMC) || CONFIG_IS_ENABLED(FASTBOOT_MULTI_FLASH_OPTION_MMC)
-		fastboot_mmc_flash_write(cmd_parameter, fastboot_buf_addr, image_size,
-					response);
-		return;
+                fastboot_mmc_flash_write(cmd_parameter, fastboot_buf_addr, image_size,
+                                        response);
+                return;
 #endif
-	}
+        }
+#else /* !CONFIG_TARGET_SPACEMIT_K1X */
+#if CONFIG_IS_ENABLED(FASTBOOT_FLASH_MTD) || CONFIG_IS_ENABLED(FASTBOOT_MULTI_FLASH_OPTION_MTD)
+        fastboot_mtd_flash_write(cmd_parameter, fastboot_buf_addr, image_size,
+                                 response);
+        return;
+#endif
+#if CONFIG_IS_ENABLED(FASTBOOT_SUPPORT_BLOCK_DEV)
+        fastboot_blk_flash_write(cmd_parameter, fastboot_buf_addr, image_size, response);
+        return;
+#endif
+#if CONFIG_IS_ENABLED(FASTBOOT_FLASH_MMC) || CONFIG_IS_ENABLED(FASTBOOT_MULTI_FLASH_OPTION_MMC)
+        fastboot_mmc_flash_write(cmd_parameter, fastboot_buf_addr, image_size,
+                                response);
+        return;
+#endif
+#endif /* CONFIG_TARGET_SPACEMIT_K1X */
 
 #if CONFIG_IS_ENABLED(FASTBOOT_FLASH_NAND)
-	fastboot_nand_flash_write(cmd_parameter, fastboot_buf_addr, image_size,
-				  response);
+        fastboot_nand_flash_write(cmd_parameter, fastboot_buf_addr, image_size,
+                                  response);
 #endif
 }
 
@@ -498,39 +522,59 @@ static void flash(char *cmd_parameter, char *response)
  */
 static void erase(char *cmd_parameter, char *response)
 {
-	u32 boot_mode = get_boot_pin_select();
+#if defined(CONFIG_TARGET_SPACEMIT_K1X)
+        u32 boot_mode = get_boot_pin_select();
 
-	switch(boot_mode){
+        switch (boot_mode) {
 #ifdef CONFIG_FASTBOOT_SUPPORT_BLOCK_DEV
-	case BOOT_MODE_NOR:
-	case BOOT_MODE_NAND:
-		static bool mtd_flash = false;
-		if (!strncmp("mtd", cmd_parameter, 3))
-			mtd_flash = true;
-		if (!strncmp("gpt", cmd_parameter, 3))
-			mtd_flash = false;
+        case BOOT_MODE_NOR:
+        case BOOT_MODE_NAND:
+        {
+                static bool mtd_flash;
 
-		if (mtd_flash){
-			fastboot_mtd_flash_erase(cmd_parameter, response);
+                if (!strncmp("mtd", cmd_parameter, 3))
+                        mtd_flash = true;
+                if (!strncmp("gpt", cmd_parameter, 3))
+                        mtd_flash = false;
 
-			if (!strncmp("OKAY", response, 4))
-				return;
-		}
+                if (mtd_flash) {
+                        fastboot_mtd_flash_erase(cmd_parameter, response);
 
-		/* erase blk dev */
-		fastboot_blk_erase(cmd_parameter, response);
-		return;
+                        if (!strncmp("OKAY", response, 4))
+                                return;
+                }
+
+                fastboot_blk_erase(cmd_parameter, response);
+
+                return;
+        }
 #endif
-	case BOOT_MODE_EMMC:
-	case BOOT_MODE_SD:
+        case BOOT_MODE_EMMC:
+        case BOOT_MODE_SD:
 #if CONFIG_IS_ENABLED(FASTBOOT_FLASH_MMC) || CONFIG_IS_ENABLED(FASTBOOT_MULTI_FLASH_OPTION_MMC)
-		fastboot_mmc_erase(cmd_parameter, response);
-		return;
+                fastboot_mmc_erase(cmd_parameter, response);
+                return;
 #endif
-	}
+        }
+#else /* !CONFIG_TARGET_SPACEMIT_K1X */
+#if CONFIG_IS_ENABLED(FASTBOOT_FLASH_MTD) || CONFIG_IS_ENABLED(FASTBOOT_MULTI_FLASH_OPTION_MTD)
+        fastboot_mtd_flash_erase(cmd_parameter, response);
+        if (!strncmp("OKAY", response, 4))
+                return;
+#endif
+#ifdef CONFIG_FASTBOOT_SUPPORT_BLOCK_DEV
+        fastboot_blk_erase(cmd_parameter, response);
+        if (!strncmp("OKAY", response, 4))
+                return;
+#endif
+#if CONFIG_IS_ENABLED(FASTBOOT_FLASH_MMC) || CONFIG_IS_ENABLED(FASTBOOT_MULTI_FLASH_OPTION_MMC)
+        fastboot_mmc_erase(cmd_parameter, response);
+        return;
+#endif
+#endif /* CONFIG_TARGET_SPACEMIT_K1X */
 
 #if CONFIG_IS_ENABLED(FASTBOOT_FLASH_NAND)
-	fastboot_nand_erase(cmd_parameter, response);
+        fastboot_nand_erase(cmd_parameter, response);
 #endif
 }
 #endif
@@ -751,66 +795,75 @@ static u32 read_console_log(char *fb_buf) {
  */
 static void oem_read(char *cmd_parameter, char *response)
 {
-	char *part, *offset_str, *cmd_str;
-	u32 off, boot_mode;
+        char *part, *offset_str, *cmd_str;
+        u32 off;
 
-	cmd_str = cmd_parameter;
-	part = strsep(&cmd_str, " ");
-	if (!part){
-		fastboot_fail("miss part, send command:\
-			fastboot oem read:part [offset]", response);
-		return;
-	}
+        cmd_str = cmd_parameter;
+        part = strsep(&cmd_str, " ");
+        if (!part) {
+                fastboot_fail("miss part, send command:\
+                        fastboot oem read:part [offset]", response);
+                return;
+        }
 
-	if (strcmp(part, "console") == 0) {
-		char *fb_buf = (char *)fastboot_buf_addr;
-		u32 read_size = read_console_log(fb_buf);
+        if (strcmp(part, "console") == 0) {
+                char *fb_buf = (char *)fastboot_buf_addr;
+                u32 read_size = read_console_log(fb_buf);
 
-		fastboot_bytes_expected = read_size;
-		fastboot_response("OKAY", response, "%08x", read_size);
-		return;
-	}
+                fastboot_bytes_expected = read_size;
+                fastboot_response("OKAY", response, "%08x", read_size);
+                return;
+        }
 
-	offset_str = strsep(&cmd_str, " ");
-	if (!offset_str){
-		pr_info("miss offset, would set offset to 0\n");
-		off = 0;
-	}else{
-		off = simple_strtoul(offset_str, NULL, 0);
-	}
+        offset_str = strsep(&cmd_str, " ");
+        if (!offset_str) {
+                pr_info("miss offset, would set offset to 0\n");
+                off = 0;
+        } else {
+                off = simple_strtoul(offset_str, NULL, 0);
+        }
 
-	debug("get part:%s, offset:%x\n", part, off);
+        debug("get part:%s, offset:%x\n", part, off);
 
-	boot_mode = get_boot_pin_select();
-	switch(boot_mode){
+#if !defined(CONFIG_TARGET_SPACEMIT_K1X)
+        fastboot_fail("unsupported", response);
+        return;
+#else
+        {
+                u32 boot_mode = get_boot_pin_select();
+
+                switch (boot_mode) {
 #ifdef CONFIG_FASTBOOT_SUPPORT_BLOCK_DEV
-	case BOOT_MODE_NOR:
-	case BOOT_MODE_NAND:
-		/*mtd read part not support read raw data*/
-		fastboot_bytes_expected = fastboot_mtd_flash_read(part, off, fastboot_buf_addr, response);
+                case BOOT_MODE_NOR:
+                case BOOT_MODE_NAND:
+                        fastboot_bytes_expected = fastboot_mtd_flash_read(part, off,
+                                                                fastboot_buf_addr, response);
 
-		/* if read data from mtd partition success, it would not try to read from blk dev*/
-		if (fastboot_bytes_expected > 0)
-			return;
-		pr_info("read data from blk dev\n");
-		fastboot_bytes_expected = fastboot_blk_read(part, off, fastboot_buf_addr, response);
+                        if (fastboot_bytes_expected > 0)
+                                return;
 
-		return;
+                        pr_info("read data from blk dev\n");
+                        fastboot_bytes_expected = fastboot_blk_read(part, off,
+                                                        fastboot_buf_addr, response);
+
+                        return;
 #endif
 #if CONFIG_IS_ENABLED(FASTBOOT_FLASH_MMC) || CONFIG_IS_ENABLED(FASTBOOT_MULTI_FLASH_OPTION_MMC)
-	case BOOT_MODE_EMMC:
-	case BOOT_MODE_SD:
-		fastboot_bytes_expected = fastboot_mmc_read(part, off, fastboot_buf_addr, response);
-		return;
+                case BOOT_MODE_EMMC:
+                case BOOT_MODE_SD:
+                        fastboot_bytes_expected = fastboot_mmc_read(part, off,
+                                                       fastboot_buf_addr, response);
+                        return;
 #endif
-	}
+                }
+        }
 
-	fastboot_okay(NULL, response);
+        fastboot_okay(NULL, response);
+#endif
 }
 #endif
 
 #if CONFIG_IS_ENABLED(FASTBOOT_CMD_OEM_CONFIG_ACCESS)
-void fastboot_config_access(char *operation, char *config, char *response);
 /**
  * oem_config() - Execute the OEM config command
  *
@@ -819,12 +872,9 @@ void fastboot_config_access(char *operation, char *config, char *response);
  */
 static void oem_config(char *cmd_parameter, char *response)
 {
-    char *cmd_str, *operation;
+        (void)cmd_parameter;
 
-	cmd_str = cmd_parameter;
-	operation = strsep(&cmd_str, " ");
-
-    fastboot_config_access(operation, cmd_str, response);
+        fastboot_fail("oem config not supported", response);
 }
 #endif
 
@@ -837,13 +887,11 @@ static void oem_config(char *cmd_parameter, char *response)
  */
 static void oem_erase(char *cmd_parameter, char *response)
 {
-	clear_storage_data(cmd_parameter, response);
-	return;
+        fastboot_fail("oem erase not supported", response);
 }
 #endif
 
 #if CONFIG_IS_ENABLED(FASTBOOT_CMD_OEM_ENV_ACCESS)
-void fastboot_env_access(char *operation, char *env, char *response);
 /**
  * oem_env() - Execute the OEM env operation command
  *
@@ -852,11 +900,8 @@ void fastboot_env_access(char *operation, char *env, char *response);
  */
 static void oem_env(char *cmd_parameter, char *response)
 {
-    char *cmd_str, *operation;
+        (void)cmd_parameter;
 
-	cmd_str = cmd_parameter;
-	operation = strsep(&cmd_str, " ");
-
-    fastboot_env_access(operation, cmd_str, response);
+        fastboot_fail("oem env not supported", response);
 }
 #endif

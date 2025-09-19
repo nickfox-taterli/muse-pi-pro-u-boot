@@ -25,7 +25,6 @@
 #include <env_internal.h>
 #include <asm/arch/ddr.h>
 #include <power/regulator.h>
-#include <fb_spacemit.h>
 #include <net.h>
 #include <i2c.h>
 #include <linux/delay.h>
@@ -528,43 +527,6 @@ char* parse_mtdparts_and_find_bootfs(void) {
 	return NULL;
 }
 
-void run_cardfirmware_flash_command(void)
-{
-	struct mmc *mmc;
-	struct disk_partition info;
-	int part_dev, err;
-	char cmd[128] = {"\0"};
-
-#ifdef CONFIG_MMC
-	mmc = find_mmc_device(MMC_DEV_SD);
-	if (!mmc)
-		return;
-	if (mmc_init(mmc))
-		return;
-
-	for (part_dev = 1; part_dev <= MAX_SEARCH_PARTITIONS; part_dev++) {
-		err = part_get_info(mmc_get_blk_desc(mmc), part_dev, &info);
-		if (err)
-			continue;
-		if (!strcmp(BOOTFS_NAME, info.name))
-			break;
-
-	}
-
-	if (part_dev > MAX_SEARCH_PARTITIONS)
-		return;
-
-	/*check if flash config file is in sd card*/
-	sprintf(cmd, "fatsize mmc %d:%d %s", MMC_DEV_SD, part_dev, FLASH_CONFIG_FILE_NAME);
-	pr_debug("cmd:%s\n", cmd);
-	if (!run_command(cmd, 0)){
-		/* show flash log*/
-		run_command("flash_image mmc", 0);
-	}
-#endif
-	return;
-}
-
 struct code_desc_info {
 	u8	m_code;
 	char	*m_name;
@@ -616,8 +578,6 @@ int board_late_init(void)
 	// set_serialnumber_based_on_boot_mode();
 
 	run_fastboot_command();
-
-	run_cardfirmware_flash_command();
 
 	probe_shutdown_charge();
 

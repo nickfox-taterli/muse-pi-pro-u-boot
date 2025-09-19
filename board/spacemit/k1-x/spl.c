@@ -18,7 +18,6 @@
 #include <env_internal.h>
 #include <mapmem.h>
 #include <asm/global_data.h>
-#include <fb_spacemit.h>
 #include <tlv_eeprom.h>
 #include <stdlib.h>
 #include <u-boot/crc.h>
@@ -28,6 +27,10 @@
 #include <asm/io.h>
 #include <configs/k1-x.h>
 #include "../../drivers/gpio/k1x_gpio.h"
+
+extern void set_boot_mode(enum board_boot_mode boot_mode);
+extern enum board_boot_mode get_boot_mode(void);
+extern enum board_boot_mode get_boot_pin_select(void);
 
 #define GEN_CNT			(0xD5001000)
 #define STORAGE_API_P_ADDR	(0xC0838498)

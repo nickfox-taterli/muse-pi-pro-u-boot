@@ -16,11 +16,9 @@
 #include <part.h>
 #include <div64.h>
 #include <linux/compat.h>
+#include <linux/errno.h>
 #include <android_image.h>
-#include <fb_spacemit.h>
-#include <u-boot/crc.h>
 #include <mmc.h>
-#include <gzip.h>
 
 #define FASTBOOT_MAX_BLK_WRITE 16384
 
@@ -30,25 +28,33 @@ struct fb_blk_sparse {
 
 
 static int do_get_part_info(struct blk_desc **dev_desc, const char *name,
-			    struct disk_partition *info)
+                            struct disk_partition *info)
 {
-	int ret = -1;
-	char *blk_dev;
-	int blk_index = -1;
+        int ret = -ENODEV;
 
-	if (get_available_blk_dev(&blk_dev, &blk_index))
-		return -1;
+#ifdef CONFIG_FASTBOOT_SUPPORT_BLOCK_DEV_NAME
+        *dev_desc = blk_get_dev(CONFIG_FASTBOOT_SUPPORT_BLOCK_DEV_NAME,
+                                CONFIG_FASTBOOT_SUPPORT_BLOCK_DEV_INDEX);
+        if (*dev_desc) {
+                ret = part_get_info_by_name(*dev_desc, name, info);
+                if (ret >= 0)
+                        return ret;
+        }
+#endif
 
-	/* First try partition names on the default device */
-	*dev_desc = blk_get_dev(blk_dev, blk_index);
-	if (*dev_desc) {
-		ret = part_get_info_by_name(*dev_desc, name, info);
-		if (ret >= 0)
-			return ret;
-	}
+#ifdef CONFIG_FASTBOOT_SUPPORT_SECOND_BLOCK_DEV
+        if (ret < 0) {
+                *dev_desc = blk_get_dev(CONFIG_FASTBOOT_SUPPORT_SECOND_BLOCK_DEV_NAME,
+                                        CONFIG_FASTBOOT_SUPPORT_SECOND_BLOCK_DEV_INDEX);
+                if (*dev_desc) {
+                        ret = part_get_info_by_name(*dev_desc, name, info);
+                        if (ret >= 0)
+                                return ret;
+                }
+        }
+#endif
 
-	printf("has not define block device name \n");
-	return ret;
+        return ret;
 }
 
 
@@ -176,119 +182,11 @@ void fastboot_blk_flash_write(const char *cmd, void *download_buffer,
 {
 	struct blk_desc *dev_desc;
 	struct disk_partition info = {0};
-#ifdef CONFIG_SPACEMIT_FLASH
-	static struct flash_dev *fdev = NULL;
-	u32 __maybe_unused fsbl_offset = 0;
-	/*save crc value to compare after flash image*/
-	u64 compare_val = 0;
-	/*use for gzip image*/
-	static ulong __maybe_unused part_offset_t = 0;
-	static char __maybe_unused part_name_t[20] = "";
-	unsigned long __maybe_unused src_len = ~0UL;
-	bool gzip_image = false;
-	bool is_hidden_part = false;
-	int part_index = 0;
 
-	if (fdev == NULL){
-		fdev = malloc(sizeof(struct flash_dev));
-		if (!fdev) {
-			printf("Memory allocation failed!\n");
-		}
-		memset(fdev, 0, sizeof(struct flash_dev));
-		fdev->gptinfo.fastboot_flash_gpt = false;
-		/*would realloc the size while parsing the partition table*/
-		fdev->gptinfo.gpt_table = malloc(10);
-		fdev->mtd_table = malloc(10);
-		memset(fdev->gptinfo.gpt_table, '\0', 10);
-		memset(fdev->mtd_table, '\0', 10);
-		printf("init fdev success\n");
-	}
+        if (fastboot_blk_get_part_info(cmd, &dev_desc, &info, response) < 0)
+                return;
 
-	/*blk device would not flash bootinfo except emmc*/
-	if (strcmp(cmd, "bootinfo") == 0) {
-		fastboot_okay(NULL, response);
-		return;
-	}
-
-	if (strcmp(cmd, "gpt") == 0) {
-		fastboot_oem_flash_gpt(cmd, fastboot_buf_addr, download_bytes,
-						response, fdev);
-		return;
-	}
-
-	for (part_index = 0; part_index < MAX_PARTITION_NUM; part_index++){
-		if (fdev->parts_info[part_index].part_name != NULL
-				&& strcmp(cmd, fdev->parts_info[part_index].part_name) == 0){
-			if (fdev->parts_info[part_index].hidden)
-				is_hidden_part = true;
-			break;
-		}
-	}
-
-	if (is_hidden_part){
-		/*find available blk dev*/
-		/* do_get_part_info(&dev_desc, cmd, &info); */
-
-		char *blk_dev;
-		int blk_index = -1;
-		if (get_available_blk_dev(&blk_dev, &blk_index) == 0) {
-			dev_desc = blk_get_dev(blk_dev, blk_index);
-			if (dev_desc == NULL){
-				fastboot_fail("can not get available blk dev", response);
-				return;
-			}
-		}else{
-			fastboot_fail("can not get available blk dev", response);
-			return;
-		}
-
-		strlcpy((char *)&info.name, cmd, sizeof(info.name));
-		info.size = fdev->parts_info[part_index].part_size / dev_desc->blksz;
-		info.start = fdev->parts_info[part_index].part_offset / dev_desc->blksz;
-		info.blksz = dev_desc->blksz;
-		printf("!!! flash image to hidden partition !!!\n");
-	}
-#endif
-
-	if (!is_hidden_part && fastboot_blk_get_part_info(cmd, &dev_desc, &info, response) < 0)
-		return;
-
-	if (check_gzip_format((uchar *)download_buffer, src_len) >= 0) {
-		/*is gzip data and equal part name*/
-		gzip_image = true;
-		if (strcmp(cmd, part_name_t)){
-			pr_info("flash part name %s is not equal to %s, \n", cmd, part_name_t);
-			strcpy(part_name_t, cmd);
-			part_offset_t = 0;
-		}
-
-		void *decompress_addr = (void *)env_get_hex("decompress_addr", GZIP_DECOMPRESS_ADDR);
-		pr_info("decompress_addr:%p\n", decompress_addr);
-		if (run_commandf("unzip %x %x", download_buffer, decompress_addr)){
-			printf("unzip gzip data fail, \n");
-			fastboot_fail("unzip gzip data fail", response);
-			return;
-		}
-
-		u32 decompress_size = env_get_hex("filesize", 0);
-		pr_info("get decompress_size:%x, \n", decompress_size);
-		download_buffer = decompress_addr;
-		download_bytes = decompress_size;
-		info.start += part_offset_t / info.blksz;
-
-		pr_info("write gzip raw data to part:%s, %p, %x, blkaddr:%lx\n", cmd, download_buffer, download_bytes, info.start);
-	} else {
-		strcpy(part_name_t, cmd);
-		part_offset_t = 0;
-	}
-
-	if ((part_offset_t + download_bytes) > info.size * info.blksz) {
-		pr_info("%s: Write exceed partition(%s) size!\n", __func__, info.name);
-		fastboot_fail("Write exceed partition size!", response);
-		return;
-	}
-
-	if (!gzip_image && is_sparse_image(download_buffer)) {
+	if (is_sparse_image(download_buffer)) {
 		struct fb_blk_sparse sparse_priv;
 		struct sparse_storage sparse = { .erase = NULL };;
 		int err;
@@ -313,15 +211,6 @@ void fastboot_blk_flash_write(const char *cmd, void *download_buffer,
 	} else {
 		write_raw_image(dev_desc, &info, cmd, download_buffer,
 				download_bytes, response);
-#ifdef CONFIG_SPACEMIT_FLASH
-		/*if download and flash div to many time, that the crc is not correct*/
-		printf("write_raw_image, \n");
-		// compare_val = crc32_wd(compare_val, (const uchar *)download_buffer, download_bytes, CHUNKSZ_CRC32);
-		compare_val += checksum64(download_buffer, download_bytes);
-		if (compare_blk_image_val(dev_desc, compare_val, info.start, info.blksz, download_bytes))
-			fastboot_fail("compare crc fail", response);
-#endif
-		part_offset_t += download_bytes;
 	}
 }
 

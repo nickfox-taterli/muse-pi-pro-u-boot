@@ -230,8 +230,8 @@ config CMD_BOOTM_PRE_LOAD
        bool "enable pre-load on bootm"
        depends on CMD_BOOTM
        depends on IMAGE_PRE_LOAD
-       default n
-       help
+	default n
+	help
          Enable support of stage pre-load for the bootm command.
 	 This stage allow to check or modify the image provided
 	 to the bootm command.
@@ -714,7 +714,7 @@ config EEPROM_LAYOUT_HELP_STRING
 	  string "Tells user what layout names are supported"
 	  depends on CMD_EEPROM_LAYOUT
 	  default "<not defined>"
-	  help
+	help
 	    Help printed with the LAYOUT VERSIONS part of the 'eeprom'
 	    command's help.
 
@@ -2421,7 +2421,7 @@ config JFFS2_DEV
 config JFFS2_MTDPARTS
     bool "Enable JFFS2 MTD partition options"
     depends on CMD_JFFS2
-    help
+	help
       Enable specifying default offset and size for JFFS2 partition
       through configuration.
 
@@ -2622,7 +2622,7 @@ config CMD_UBI
 config CMD_UBI_RENAME
        bool "Enable rename"
        depends on CMD_UBI
-       help
+	help
          Enable a "ubi" command to rename ubi volume:
 	   ubi rename <oldname> <newname>
 
@@ -2646,20 +2646,10 @@ config MMC_SPEED_MODE_SET
 	  include/mmc.h. A speed mode can be set only if it has already
 	  been enabled in the device tree.
 
-menu "spacemit commands"
-
-config SPACEMIT_FLASH
-	bool "enable spacemit flash behavior"
-	default n
-	help
-	  enable spacemit flash behavior, use for flashing function.
-
 config SPL_FASTBOOT
 	bool "Enable SPL Fastboot Mode"
 	default n
 	help
 	  Enable this option to enable fastboot in spl
-
-endmenu
 
 endmenu

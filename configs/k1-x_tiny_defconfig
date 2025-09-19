@@ -718,7 +718,6 @@ CONFIG_CMD_UBIFS=y
 #
 # spacemit commands
 #
-CONFIG_SPACEMIT_FLASH=y
 CONFIG_SPL_FASTBOOT=y
 
 #
