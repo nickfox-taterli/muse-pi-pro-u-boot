@@ -15,7 +15,6 @@
 #include <stdlib.h>
 #include <spl.h>
 #include <image.h>
-#include <fb_spacemit.h>
 #include <fb_mtd.h>
 #include <fb_blk.h>
 #include <dm.h>
@@ -837,8 +836,7 @@ static void oem_config(char *cmd_parameter, char *response)
  */
 static void oem_erase(char *cmd_parameter, char *response)
 {
-	clear_storage_data(cmd_parameter, response);
-	return;
+        fastboot_fail("oem erase not supported", response);
 }
 #endif
 

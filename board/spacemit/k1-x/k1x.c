@@ -25,7 +25,6 @@
 #include <env_internal.h>
 #include <asm/arch/ddr.h>
 #include <power/regulator.h>
-#include <fb_spacemit.h>
 #include <net.h>
 #include <i2c.h>
 #include <linux/delay.h>

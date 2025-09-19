@@ -13,9 +13,7 @@
 #include <linux/mtd/mtd.h>
 #include <linux/compat.h>
 #include <android_image.h>
-#include <fb_spacemit.h>
 #include <fastboot-internal.h>
-#include <u-boot/crc.h>
 #include <mapmem.h>
 #include <mtd.h>
 #include <linux/mtd/spi-nor.h>
@@ -331,35 +329,10 @@ void fastboot_mtd_flash_write(const char *cmd, void *download_buffer,
 	int ret;
 	char mtd_partition[20] = {'\0'};
 	char ubi_volume[20] = {'\0'};
-	char cmd_buf[256];
-	int need_erase = 1;
-	u64 compare_val = 0;
+        char cmd_buf[256];
+        int need_erase = 1;
 
 	printf("Starting fastboot_mtd_flash_write for %s\n", cmd);
-#ifdef CONFIG_SPACEMIT_FLASH
-	static struct flash_dev *fdev = NULL;
-
-	if (fdev == NULL){
-		fdev = malloc(sizeof(struct flash_dev));
-		if (!fdev) {
-			printf("Memory allocation failed!\n");
-		}
-		memset(fdev, 0, sizeof(struct flash_dev));
-		fdev->gptinfo.fastboot_flash_gpt = false;
-		/*would realloc the size while parsing the partition table*/
-		fdev->gptinfo.gpt_table = malloc(10);
-		fdev->mtd_table = malloc(10);
-		memset(fdev->gptinfo.gpt_table, '\0', 10);
-		memset(fdev->mtd_table, '\0', 10);
-	}
-
-	if (!strncmp(cmd, "mtd", 3)){
-		fastboot_oem_flash_gpt(cmd, fastboot_buf_addr, download_bytes,
-						response, fdev);
-		return;
-	}
-
-#endif
 
 	ret = fb_mtd_lookup(cmd, &mtd, &part);
 	printf("fb_mtd_lookup returned %d for %s\n", ret, cmd);
@@ -577,16 +550,9 @@ void fastboot_mtd_flash_write(const char *cmd, void *download_buffer,
 				download_bytes, part->name);
 		}
 
-		pr_info("compare data valid or not\n");
-		// crc_val = crc32_wd(crc_val, (const uchar *)download_buffer, download_bytes, CHUNKSZ_CRC32);
-		compare_val += checksum64(download_buffer, download_bytes);
-		if (compare_mtd_image_val(mtd, compare_val, download_bytes)){
-			fastboot_fail("compare crc fail", response);
-			return;
-		}
-	}
+        }
 
-	if (ret)
+        if (ret)
 		fastboot_fail("error writing the image", response);
 	else
 		fastboot_okay(NULL, response);

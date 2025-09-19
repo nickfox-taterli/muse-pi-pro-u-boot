@@ -15,7 +15,6 @@
 #include <version.h>
 #include <asm/global_data.h>
 #include <mtd.h>
-#include <fb_spacemit.h>
 #include <command.h>
 
 DECLARE_GLOBAL_DATA_PTR;
@@ -29,68 +28,6 @@ static void getvar_version_baseband(char *var_parameter, char *response);
 static void getvar_product(char *var_parameter, char *response);
 static void getvar_platform(char *var_parameter, char *response);
 static void getvar_current_slot(char *var_parameter, char *response);
-#if CONFIG_IS_ENABLED(SPACEMIT_FLASH)
-static void getvar_mtd_size(char *var_parameter, char *response);
-static void getvar_blk_size(char *var_parameter, char *response);
-#endif
-#if CONFIG_IS_ENABLED(FASTBOOT_FLASH)
-static void getvar_has_slot(char *var_parameter, char *response);
-#endif
-#if CONFIG_IS_ENABLED(FASTBOOT_FLASH_MMC) || CONFIG_IS_ENABLED(FASTBOOT_MULTI_FLASH_OPTION_MMC)
-static void getvar_partition_type(char *part_name, char *response);
-#endif
-#if CONFIG_IS_ENABLED(FASTBOOT_FLASH)
-static void getvar_partition_size(char *part_name, char *response);
-#endif
-static void getvar_is_userspace(char *var_parameter, char *response);
-
-static const struct {
-	const char *variable;
-	void (*dispatch)(char *var_parameter, char *response);
-} getvar_dispatch[] = {
-	{
-		.variable = "version",
-		.dispatch = getvar_version
-	}, {
-		.variable = "version-bootloader",
-		.dispatch = getvar_version_bootloader
-	}, {
-		.variable = "version-IC",
-		.dispatch = getvar_version_IC
-	}, {
-		.variable = "downloadsize",
-		.dispatch = getvar_downloadsize
-	}, {
-		.variable = "max-download-size",
-		.dispatch = getvar_downloadsize
-	}, {
-		.variable = "serialno",
-		.dispatch = getvar_serialno
-	}, {
-		.variable = "version-baseband",
-		.dispatch = getvar_version_baseband
-	}, {
-		.variable = "product",
-		.dispatch = getvar_product
-	}, {
-		.variable = "platform",
-		.dispatch = getvar_platform
-#if CONFIG_IS_ENABLED(SPACEMIT_FLASH)
-	}, {
-		.variable = "mtd-size",
-		.dispatch = getvar_mtd_size
-	}, {
-		.variable = "blk-size",
-		.dispatch = getvar_blk_size
-#endif
-	}, {
-		.variable = "current-slot",
-		.dispatch = getvar_current_slot
-#if CONFIG_IS_ENABLED(FASTBOOT_FLASH)
-	}, {
-		.variable = "has-slot",
-		.dispatch = getvar_has_slot
-#endif
 #if CONFIG_IS_ENABLED(FASTBOOT_FLASH_MMC) || CONFIG_IS_ENABLED(FASTBOOT_MULTI_FLASH_OPTION_MMC)
 	}, {
 		.variable = "partition-type",
@@ -122,46 +59,52 @@ static const struct {
  * Return: Partition number or negative value on error
  */
 static int getvar_get_part_info(const char *part_name, char *response,
-				size_t *size)
+                                size_t *size)
 {
-	int r;
-	u32 boot_mode = get_boot_pin_select();
-	switch(boot_mode){
+        int r = -ENODEV;
+
 #if CONFIG_IS_ENABLED(FASTBOOT_FLASH_MTD) || CONFIG_IS_ENABLED(FASTBOOT_MULTI_FLASH_OPTION_MTD)
-	case BOOT_MODE_NOR:
-	case BOOT_MODE_NAND:
-		struct part_info *mtd_part_info;
-		r = fastboot_mtd_get_part_info(part_name, &mtd_part_info, response);
-		if (r >= 0 && size)
-			*size = mtd_part_info->size;
-		break;
+        {
+                struct part_info *mtd_part_info;
+
+                r = fastboot_mtd_get_part_info(part_name, &mtd_part_info, response);
+                if (r >= 0) {
+                        if (size)
+                                *size = mtd_part_info->size;
+                        return r;
+                }
+        }
 #endif
 
 #if CONFIG_IS_ENABLED(FASTBOOT_FLASH_MMC) || CONFIG_IS_ENABLED(FASTBOOT_MULTI_FLASH_OPTION_MMC)
-	case BOOT_MODE_EMMC:
-	case BOOT_MODE_SD:
-		struct blk_desc *dev_desc;
-		struct disk_partition part_info;
+        {
+                struct blk_desc *dev_desc;
+                struct disk_partition part_info;
 
-		r = fastboot_mmc_get_part_info(part_name, &dev_desc, &part_info,
-						response);
-		if (r >= 0 && size)
-			*size = part_info.size * part_info.blksz;
-		break;
+                r = fastboot_mmc_get_part_info(part_name, &dev_desc, &part_info,
+                                                response);
+                if (r >= 0) {
+                        if (size)
+                                *size = part_info.size * part_info.blksz;
+                        return r;
+                }
+        }
 #endif
-	default:
-		fastboot_fail("this storage is not supported in bootloader", response);
-		r = -ENODEV;
-	}
 
 #if CONFIG_IS_ENABLED(FASTBOOT_FLASH_NAND)
-	struct part_info *part_info;
-	r = fastboot_nand_get_part_info(part_name, &part_info, response);
-	if (r >= 0 && size)
-		*size = part_info->size;
+        {
+                struct part_info *part_info;
+
+                r = fastboot_nand_get_part_info(part_name, &part_info, response);
+                if (r >= 0) {
+                        if (size)
+                                *size = part_info->size;
+                        return r;
+                }
+        }
 #endif
 
-	return r;
+        return r;
 }
 #endif
 
@@ -233,97 +176,6 @@ static void getvar_current_slot(char *var_parameter, char *response)
 	/* A/B not implemented, for now always return "a" */
 	fastboot_okay("a", response);
 }
-
-#if CONFIG_IS_ENABLED(SPACEMIT_FLASH)
-/**
- * @brief Get the mtd size and return, if not mtd dev exists, it would return NULL.
-	if there have multi mtd devices, it would only return the first one.
- *
- * @param var_parameter
- * @param response
- * @return return
-*/
-static void getvar_mtd_size(char *var_parameter, char *response)
-{
-	u32 boot_mode = get_boot_pin_select();
-	switch(boot_mode){
-	case BOOT_MODE_NOR:
-	case BOOT_MODE_NAND:
-#if CONFIG_IS_ENABLED(FASTBOOT_FLASH_MTD) || CONFIG_IS_ENABLED(FASTBOOT_MULTI_FLASH_OPTION_MTD)
-		/*if select nor/nand, it would check if mtd dev exists or not*/
-		struct mtd_info *mtd;
-		mtd_probe_devices();
-		mtd_for_each_device(mtd) {
-			if (!mtd_is_partition(mtd)) {
-				if (mtd->size / 0x40000000){
-					fastboot_response("OKAY", response, "%lldG", mtd->size / 0x40000000);
-					return;
-				}
-				if (mtd->size / 0x100000){
-					fastboot_response("OKAY", response, "%lldM", mtd->size / 0x100000);
-					return;
-				}
-				if (mtd->size / 0x400){
-					fastboot_response("OKAY", response, "%lldK", mtd->size / 0x400);
-					return;
-				}
-			}
-		}
-		fastboot_fail("no mtd device", response);
-		break;
-#endif
-	default:
-		fastboot_okay("NULL", response);
-		break;
-	}
-}
-
-/**
- * @brief Get the var blk size object,  if has blk device, it would return
-	string universal, or return NULL.
- *
- * @param var_parameter
- * @param response
- */
-static void getvar_blk_size(char *var_parameter, char *response)
-{
-	struct blk_desc *dev_desc = NULL;
-	char *blk_name;
-	int blk_index;
-
-	u32 boot_mode = get_boot_pin_select();
-	switch(boot_mode){
-	case BOOT_MODE_NOR:
-	case BOOT_MODE_NAND:
-		if (get_available_blk_dev(&blk_name, &blk_index)){
-			fastboot_fail("no block device", response);
-			return;
-		}
-
-		dev_desc = blk_get_devnum_by_typename(blk_name, blk_index);
-		if (dev_desc != NULL)
-			fastboot_okay("universal", response);
-		else
-			fastboot_fail("no block device", response);
-		return;
-	case BOOT_MODE_EMMC:
-	case BOOT_MODE_SD:
-#ifdef CONFIG_FASTBOOT_FLASH_MMC_DEV
-		blk_name = "mmc";
-		blk_index = CONFIG_FASTBOOT_FLASH_MMC_DEV;
-		dev_desc = blk_get_devnum_by_typename(blk_name, blk_index);
-		if (dev_desc != NULL)
-			fastboot_okay("universal", response);
-		else
-			fastboot_fail("no block device", response);
-		return;
-#endif
-	default:
-		fastboot_fail("no block device", response);
-		return;
-	}
-}
-#endif
 
 #if CONFIG_IS_ENABLED(FASTBOOT_FLASH)
 static void getvar_has_slot(char *part_name, char *response)
