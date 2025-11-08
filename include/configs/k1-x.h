@@ -205,9 +205,6 @@ enum private_part_offset {
 	"dtb_addr=" __stringify(DTB_LOAD_ADDR) "\0" \
 	"scriptaddr=0x2c100000\0" \
 	"pxefile_addr_r=0x0c200000\0" \
-	"splashimage=" __stringify(CONFIG_FASTBOOT_BUF_ADDR) "\0" \
-	"splashpos=m,m\0" \
-	"splashfile=bianbu.bmp\0" \
 	"led0_gpio=" __stringify(STATUS_LED_GPIO0) "\0" \
 	BOOTENV_DEVICE_CONFIG
 
