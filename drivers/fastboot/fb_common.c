@@ -130,6 +130,7 @@ void (*fastboot_get_progress_callback(void))(const char *)
  */
 void fastboot_boot(void)
 {
+#if CONFIG_IS_ENABLED(CMD_BOOTM)
 	char *s;
 
 	s = env_get("fastboot_bootcmd");
@@ -154,6 +155,9 @@ void fastboot_boot(void)
 		 */
 		do_reset(NULL, 0, 0, NULL);
 	}
+#else
+	return;
+#endif
 }
 #endif /*#!defined(CONFIG_SPL_BUILD)*/
 

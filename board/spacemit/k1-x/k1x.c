@@ -57,7 +57,9 @@ extern int flush_tlvinfo(void);
 extern int update_tlvinfo(void);
 
 DECLARE_GLOBAL_DATA_PTR;
+#if CONFIG_IS_ENABLED(IMPORT_ENV_FROM_BOOTFS)
 static char found_partition[64] = {0};
+#endif
 extern u32 ddr_cs_num;
 bool is_video_connected = false;
 uint32_t reboot_config;
@@ -504,6 +506,7 @@ int run_uboot_shell(void)
 	return 1;
 }
 
+#if CONFIG_IS_ENABLED(IMPORT_ENV_FROM_BOOTFS)
 void _load_env_from_blk(struct blk_desc *dev_desc, const char *dev_name, int dev)
 {
 	int err;
@@ -685,6 +688,7 @@ void import_env_from_bootfs(void)
 	}
 	return;
 }
+#endif
 
 void run_cardfirmware_flash_command(void)
 {
@@ -1027,8 +1031,10 @@ int board_late_init(void)
 		return 0;
 	}
 
+#if CONFIG_IS_ENABLED(IMPORT_ENV_FROM_BOOTFS)
 	/*import env.txt from bootfs*/
 	import_env_from_bootfs();
+#endif
 
 	if (!is_video_connected) {
 		env_set("stdout", "serial");

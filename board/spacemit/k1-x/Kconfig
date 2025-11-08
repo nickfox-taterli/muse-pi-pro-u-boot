@@ -105,4 +105,13 @@ config SPL_BOOTING_NON_AI_CORE_SUPPORT
          Support letting the non ai core as the booting cpu and bring it up
          first
 
+config IMPORT_ENV_FROM_BOOTFS
+	bool "Import environment variables from bootfs"
+	default n
+	help
+	  Enable importing environment variables from bootfs partition.
+	  This feature loads env.txt from bootfs and imports it to U-Boot
+	  environment variables. If disabled, the import_env_from_bootfs()
+	  function will not be called during boot.
+
 endif
