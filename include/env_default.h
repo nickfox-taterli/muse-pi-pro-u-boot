@@ -91,13 +91,6 @@ const char default_environment[] = {
 #ifdef CONFIG_SYS_CPU
 	"cpu="		CONFIG_SYS_CPU			"\0"
 #endif
-#ifdef CONFIG_SYS_BOARD
-	"board="	CONFIG_SYS_BOARD		"\0"
-	"board_name="	CONFIG_SYS_BOARD		"\0"
-#endif
-#ifdef CONFIG_SYS_VENDOR
-	"vendor="	CONFIG_SYS_VENDOR		"\0"
-#endif
 #ifdef CONFIG_SYS_SOC
 	"soc="		CONFIG_SYS_SOC			"\0"
 #endif

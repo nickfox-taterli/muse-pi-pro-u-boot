@@ -20,11 +20,6 @@
 #define RISCV_SMODE_TIMER_FREQ	24000000
 #define RISCV_TIMER_FREQ	(RISCV_SMODE_TIMER_FREQ)
 
-#define CONFIG_IPADDR		10.0.92.253
-#define CONFIG_SERVERIP		10.0.92.134
-#define CONFIG_GATEWAYIP	10.0.92.1
-#define CONFIG_NETMASK		255.255.255.0
-
 #define DEFAULT_PRODUCT_NAME	"k1-x_deb1"
 
 #define DDR_TRAINING_DATA_BASE	(0xc0832000)
@@ -170,43 +165,9 @@ enum private_part_offset {
 
 /* Environment options */
 
-#define BOOT_TARGET_DEVICES(func) \
-	func(QEMU, qemu, na)
-
-#include <config_distro_bootcmd.h>
-
-#define BOOTENV_DEV_QEMU(devtypeu, devtypel, instance) \
-	"bootcmd_qemu=" \
-	"if env exists kernel_start; then " \
-	"bootm ${kernel_start} - ${fdtcontroladdr};" \
-	"fi;\0"
-
-#define BOOTENV_DEV_NAME_QEMU(devtypeu, devtypel, instance) \
-	"qemu "
-
-#define BOOTENV_DEVICE_CONFIG \
-	"product_name=" DEFAULT_PRODUCT_NAME "\0" \
-	"serial#=0123456789ABCDEF\0" \
-	"manufacturer=" CONFIG_SYS_VENDOR "\0" \
-	"manufacture_date=01/16/2023 11:02:20\0" \
-	"device_version=1\0" \
-	"sdk_version=1\0" \
-	"pmic_type=" __stringify(K1_DEFALT_PMIC_TYPE) "\0" \
-	"eeprom_i2c_index=" __stringify(K1_DEFALT_EEPROM_I2C_INDEX) "\0" \
-	"eeprom_pin_group=" __stringify(K1_DEFALT_EEPROM_PIN_GROUP) "\0"
-
 /*if env not use for spl, please define to board/spacemit/k1-x/k1-x.env */
 #define CONFIG_EXTRA_ENV_SETTINGS \
-	"stdout_flash=serial,vidconsole\0" \
-	"kernel_comp_addr_r=" __stringify(CONFIG_SYS_LOAD_ADDR) "\0" \
-	"kernel_comp_size=" __stringify(CONFIG_FASTBOOT_BUF_SIZE) "\0" \
 	"kernel_addr_r=" __stringify(CONFIG_FASTBOOT_BUF_ADDR) "\0" \
-	"ramdisk_addr=" __stringify(RAMDISK_LOAD_ADDR) "\0" \
-	"dtb_addr=" __stringify(DTB_LOAD_ADDR) "\0" \
-	"scriptaddr=0x2c100000\0" \
-	"pxefile_addr_r=0x0c200000\0" \
-	"led0_gpio=" __stringify(STATUS_LED_GPIO0) "\0" \
-	BOOTENV_DEVICE_CONFIG
-
+	"dtb_addr=" __stringify(DTB_LOAD_ADDR) "\0"
 
 #endif /* __CONFIG_H */
