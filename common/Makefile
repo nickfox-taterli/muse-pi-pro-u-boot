@@ -43,7 +43,6 @@ obj-$(CONFIG_LCD_ROTATION) += lcd_console_rotation.o
 obj-$(CONFIG_MENU) += menu.o
 obj-$(CONFIG_UPDATE_COMMON) += update.o
 obj-$(CONFIG_USB_KEYBOARD) += usb_kbd.o
-obj-$(CONFIG_CMDLINE) += cli_readline.o cli_simple.o
 
 endif # !CONFIG_SPL_BUILD
 
@@ -62,6 +61,8 @@ obj-$(CONFIG_SPL_USB_STORAGE) += usb_storage.o
 obj-$(CONFIG_SPL_MUSB_NEW) += usb.o
 obj-$(CONFIG_SPL_FASTBOOT) += usb.o
 endif # CONFIG_SPL_BUILD
+
+obj-$(CONFIG_CMDLINE) += cli_readline.o cli_simple.o
 
 #others
 obj-$(CONFIG_DDR_SPD) += ddr_spd.o

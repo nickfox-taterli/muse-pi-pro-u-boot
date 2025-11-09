@@ -336,7 +336,7 @@ void fastboot_mtd_flash_write(const char *cmd, void *download_buffer,
 	u64 compare_val = 0;
 
 	printf("Starting fastboot_mtd_flash_write for %s\n", cmd);
-#ifdef CONFIG_SPACEMIT_FLASH
+#ifdef CONFIG_TARGET_SPACEMIT_K1X
 	static struct flash_dev *fdev = NULL;
 
 	if (fdev == NULL){

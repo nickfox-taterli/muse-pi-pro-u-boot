@@ -114,4 +114,70 @@ config IMPORT_ENV_FROM_BOOTFS
 	  environment variables. If disabled, the import_env_from_bootfs()
 	  function will not be called during boot.
 
+config SKIP_CARD_FIRMWARE_FLASH
+	bool "Skip SD card firmware auto-flash"
+	default n
+	help
+	  Skip automatic firmware flash from SD card during boot.
+	  When enabled, the system will not scan SD card for 
+	  partition_universal.json and will not execute flash_image mmc
+	  command automatically. The actual flash functionality in 
+	  flash_image command remains available for manual execution.
+
+config K1X_SET_ETHADDR
+	bool "Set Ethernet MAC address"
+	default y
+	help
+	  Enable setting Ethernet MAC address from TLV EEPROM or generate
+	  random MAC address if not found. This function reads MAC addresses
+	  from EEPROM and sets ethaddr/eth1addr environment variables.
+
+config K1X_SET_SERIAL_NO
+	bool "Set device serial number"
+	default y
+	help
+	  Enable setting device serial number from TLV EEPROM.
+	  This function reads serial number and sets serial# environment variable.
+
+config K1X_REFRESH_CONFIG
+	bool "Refresh configuration information"
+	default y
+	help
+	  Enable refreshing configuration information from TLV EEPROM.
+	  This function reads various config items like serial number and
+	  updates corresponding environment variables.
+
+config K1X_SET_DATA_BUFFER
+	bool "Set data buffer environment variables"
+	default y
+	help
+	  Enable setting data buffer environment variables based on DDR capacity.
+	  This function configures fastboot_buffer_size, decompress_addr,
+	  ramdisk_addr and dtb_addr according to available memory.
+
+config K1X_SET_PRODUCT_NAME
+	bool "Set default product name"
+	default y
+	help
+	  Enable setting default product name when product_name environment
+	  variable is not set. This function sets product_name to DEFAULT_PRODUCT_NAME
+	  when no product name is available from environment or EEPROM.
+
+config K1X_NV_REBOOT_TRIGGERS
+    bool "Allow boot-mode override via non-reset registers"
+    default n
+    help
+      Read/consume BOOT_CIU_DEBUG_REG0 and PMIC P1_NON_RESET_REG to override
+      boot mode (e.g. jump into fastboot). Disable to ignore software-set flags.
+
+config K1X_EARLY_SHELL_SUPPORT
+    bool "Support early U-Boot shell entry"
+    default y
+    help
+      Enable early entry into U-Boot shell based on boot mode or
+      non-reset register settings. When enabled, the system can
+      enter shell mode early in the boot process if BOOT_MODE_SHELL
+      is detected. Disable to prevent early shell entry and force
+      normal boot sequence.
+
 endif

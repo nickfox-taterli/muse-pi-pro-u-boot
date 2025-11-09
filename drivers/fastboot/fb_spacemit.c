@@ -34,7 +34,7 @@
 
 #define EMMC_MAX_BLK_WRITE 16384
 
-#if CONFIG_IS_ENABLED(SPACEMIT_FLASH)
+#if CONFIG_TARGET_SPACEMIT_K1X
 int _write_gpt_partition(struct flash_dev *fdev)
 {
 	char *gpt_table_str = NULL;

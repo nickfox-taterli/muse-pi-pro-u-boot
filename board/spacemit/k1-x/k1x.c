@@ -61,8 +61,9 @@ DECLARE_GLOBAL_DATA_PTR;
 static char found_partition[64] = {0};
 #endif
 extern u32 ddr_cs_num;
-bool is_video_connected = false;
+#ifdef K1X_NV_REBOOT_TRIGGERS 
 uint32_t reboot_config;
+#endif
 void refresh_config_info(void);
 
 void set_boot_mode(enum board_boot_mode boot_mode)
@@ -291,32 +292,37 @@ bool write_boot_storage(void *buff, ulong offset, ulong byte_size)
 	return false;
 }
 
-void save_ddr_training_info(void)
-{
-	struct ddr_training_info_t *info;
-	info = (struct ddr_training_info_t*)map_sysmem(DDR_TRAINING_INFO_BUFF, 0);
-
-	if ((DDR_TRAINING_INFO_MAGIC == info->magic) &&
-		(info->crc32 == crc32(0, (const uchar *)&info->chipid, sizeof(*info) - 8))) {
-		// save DDR training info to boot storage
-		write_boot_storage(info, DDR_TRAINING_INFO_OFFSET, sizeof(*info));
-	}
-}
-
 void get_ddr_config_info(void)
 {
-	struct ddr_training_info_t *info;
-	info = (struct ddr_training_info_t*)map_sysmem(DDR_TRAINING_INFO_BUFF, 0);
+    struct ddr_training_info_t *info;
+    uint32_t calc_crc;
 
-	if ((DDR_TRAINING_INFO_MAGIC == info->magic) &&
-		(info->crc32 == crc32(0, (const uchar *)&info->chipid, sizeof(*info) - 8))) {
-		// get DDR cs number that is update in spl stage
-		ddr_cs_num = info->cs_num;
-	}
-	else
-		ddr_cs_num = DDR_CS_NUM;
+    info = (struct ddr_training_info_t*)map_sysmem(DDR_TRAINING_INFO_BUFF, 0);
+
+    /* 计算覆盖范围：去掉 magic(4) + crc32(4) 共 8 字节 */
+    calc_crc = crc32(0, (const uchar *)&info->chipid, sizeof(*info) - 8);
+
+    printf("ddr: info_buf=%p, struct_size=%zu\n", info, sizeof(*info));
+    printf("ddr: magic=0x%08x (expect 0x%08x)\n", info->magic, DDR_TRAINING_INFO_MAGIC);
+    printf("ddr: crc stored=0x%08x, calc=0x%08x, span=%zu\n",
+           info->crc32, calc_crc, (size_t)(sizeof(*info) - 8));
+    printf("ddr: chipid=0x%016llx, mac_raw=0x%016llx, version=%u, cs_num(read)=%u\n",
+           (unsigned long long)info->chipid,
+           (unsigned long long)info->mac_addr,
+           info->version, info->cs_num);
+
+    if ((DDR_TRAINING_INFO_MAGIC == info->magic) &&
+        (info->crc32 == calc_crc)) {
+        /* get DDR cs number that is update in spl stage */
+        ddr_cs_num = info->cs_num;
+        printf("ddr: training info VALID, use cs_num=%u\n", ddr_cs_num);
+    } else {
+        ddr_cs_num = DDR_CS_NUM;
+        printf("ddr: training info INVALID, fallback cs_num=%u\n", ddr_cs_num);
+    }
 }
 
+#ifdef K1X_NV_REBOOT_TRIGGERS
 u32 get_reboot_config(void)
 {
 	int ret;
@@ -362,7 +368,7 @@ u32 get_reboot_config(void)
 
 	return reboot_config;
 }
-
+#endif
 
 #ifdef CONFIG_BUTTON
 static int button_get_state_by_label(struct udevice *dev, const char *label)
@@ -478,7 +484,10 @@ void run_fastboot_command(void)
 {
 	u32 boot_mode = get_boot_mode();
 
-	if (boot_mode == BOOT_MODE_USB || BOOT_MODE_USB == get_reboot_config()
+	if (boot_mode == BOOT_MODE_USB
+#ifdef K1X_NV_REBOOT_TRIGGERS 
+		|| BOOT_MODE_USB == get_reboot_config()
+#endif
 #ifdef CONFIG_BUTTON
 		|| check_fastboot_keys()
 #endif
@@ -491,20 +500,27 @@ void run_fastboot_command(void)
 
 		/*read from eeprom and update info to env*/
 		update_tlvinfo();
+#ifdef CONFIG_K1X_REFRESH_CONFIG
 		refresh_config_info();
+#endif
 	}
 }
 
-
+#ifdef CONFIG_K1X_EARLY_SHELL_SUPPORT
 int run_uboot_shell(void)
 {
 	u32 boot_mode = get_boot_mode();
 
-	if (boot_mode == BOOT_MODE_SHELL || BOOT_MODE_SHELL == get_reboot_config()) {
+	if (boot_mode == BOOT_MODE_SHELL
+#ifdef K1X_NV_REBOOT_TRIGGERS 
+		 || BOOT_MODE_SHELL == get_reboot_config()
+#endif
+		) {
 		return 0;
 	}
 	return 1;
 }
+#endif
 
 #if CONFIG_IS_ENABLED(IMPORT_ENV_FROM_BOOTFS)
 void _load_env_from_blk(struct blk_desc *dev_desc, const char *dev_name, int dev)
@@ -690,6 +706,7 @@ void import_env_from_bootfs(void)
 }
 #endif
 
+#ifdef CONFIG_SPACEMIT_FLASH
 void run_cardfirmware_flash_command(void)
 {
 	struct mmc *mmc;
@@ -727,6 +744,7 @@ void run_cardfirmware_flash_command(void)
 #endif
 	return;
 }
+#endif
 
 void setenv_boot_mode(void)
 {
@@ -823,6 +841,7 @@ int read_mac_from_tlv(void)
 	return maccount;
 }
 
+#ifdef CONFIG_K1X_SET_ETHADDR
 void set_env_ethaddr(void)
 {
 	uint8_t mac_addr[6];
@@ -855,7 +874,9 @@ void set_env_ethaddr(void)
 	increase_eth_addr(mac_addr);
 	eth_env_set_enetaddr("eth1addr", mac_addr);
 }
+#endif
 
+#ifdef CONFIG_K1X_SET_SERIAL_NO
 void set_dev_serial_no(void)
 {
 	char serial[64];
@@ -866,7 +887,9 @@ void set_dev_serial_no(void)
 		env_set("serial#", serial);
 	}
 }
+#endif
 
+#ifdef CONFIG_K1X_REFRESH_CONFIG
 struct code_desc_info {
 	u8	m_code;
 	char	*m_name;
@@ -919,7 +942,9 @@ void refresh_config_info(void)
 
 	free(strval);
 }
+#endif 
 
+#ifdef CONFIG_K1X_SET_DATA_BUFFER
 void set_data_buffer_env(void)
 {
 	u64 dram_size = (u64)ddr_get_density() * SZ_1MB, fastboot_buffer_size;
@@ -938,10 +963,12 @@ void set_data_buffer_env(void)
 		env_set("dtb_addr", temp);
 	}
 }
+#endif
 
+#ifdef CONFIG_SPACEMIT_SHUTDOWN_CHARGE
 static int probe_shutdown_charge(void)
 {
-#ifdef CONFIG_SPACEMIT_SHUTDOWN_CHARGE
+
 	struct udevice *udev;
 	int ret;
 
@@ -957,10 +984,8 @@ static int probe_shutdown_charge(void)
 		pr_info("Continue to boot\n");
 	}
 	return ret;
-#else
-	return 0;
-#endif
 }
+#endif
 
 int board_init(void)
 {
@@ -982,18 +1007,25 @@ int board_late_init(void)
 	char ram_size_str[16] = {"\0"};
 	int ret;
 
-	// save_ddr_training_info();
-
+#ifdef CONFIG_K1X_SET_PRODUCT_NAME
 	// it MAY be NULL when did NOT load build-in env and eeprom is empty
 	if (NULL == env_get("product_name"))
 		env_set("product_name", DEFAULT_PRODUCT_NAME);
+#endif
 
+#ifdef CONFIG_K1X_SET_ETHADDR
 	set_env_ethaddr();
+#endif
+#ifdef CONFIG_K1X_SET_SERIAL_NO
 	set_dev_serial_no();
-	refresh_config_info();
-	set_data_buffer_env();
-
 	set_serialnumber_based_on_boot_mode();
+#endif
+#ifdef CONFIG_K1X_REFRESH_CONFIG
+	refresh_config_info();
+#endif
+#ifdef CONFIG_K1X_SET_DATA_BUFFER
+	set_data_buffer_env();
+#endif
 
 #ifdef CONFIG_VIDEO_SPACEMIT
 	ret = uclass_probe_all(UCLASS_VIDEO);
@@ -1017,28 +1049,29 @@ int board_late_init(void)
 
 	run_fastboot_command();
 
+#ifdef CONFIG_SPACEMIT_FLASH
 	run_cardfirmware_flash_command();
-
 #ifdef CONFIG_ENV_IS_IN_NFS
 	run_net_flash_command();
 #endif
+#endif
 
+#ifdef CONFIG_SPACEMIT_SHUTDOWN_CHARGE
 	probe_shutdown_charge();
+#endif
 
+#ifdef CONFIG_K1X_EARLY_SHELL_SUPPORT
 	ret = run_uboot_shell();
 	if (!ret) {
 		pr_info("reboot into uboot shell\n");
 		return 0;
 	}
+#endif
 
 #if CONFIG_IS_ENABLED(IMPORT_ENV_FROM_BOOTFS)
 	/*import env.txt from bootfs*/
 	import_env_from_bootfs();
 #endif
-
-	if (!is_video_connected) {
-		env_set("stdout", "serial");
-	}
 
 	setenv_boot_mode();
 

@@ -518,7 +518,7 @@ void fastboot_mmc_flash_write(const char *cmd, void *download_buffer,
 {
 	struct blk_desc *dev_desc;
 	struct disk_partition info = {0};
-#ifdef CONFIG_SPACEMIT_FLASH
+#ifdef CONFIG_TARGET_SPACEMIT_K1X
 	static struct flash_dev *fdev = NULL;
 	u32 __maybe_unused fsbl_offset = 0;
 	/*save crc value to compare after flash image*/
@@ -559,7 +559,7 @@ void fastboot_mmc_flash_write(const char *cmd, void *download_buffer,
 	if (strcmp(cmd, CONFIG_FASTBOOT_MMC_BOOT1_NAME) == 0) {
 		dev_desc = fastboot_mmc_get_dev(response);
 		if (dev_desc){
-#ifdef CONFIG_SPACEMIT_FLASH
+#ifdef CONFIG_TARGET_SPACEMIT_K1X
 			flash_mmc_boot_op(dev_desc, download_buffer, 1,
 					download_bytes, BOOT_INFO_EMMC_SPL0_OFFSET);
 			fastboot_okay(NULL, response);
@@ -582,7 +582,7 @@ void fastboot_mmc_flash_write(const char *cmd, void *download_buffer,
 #if CONFIG_IS_ENABLED(EFI_PARTITION)
 	if (strcmp(cmd, CONFIG_FASTBOOT_GPT_NAME) == 0) {
 
-#ifdef CONFIG_SPACEMIT_FLASH
+#ifdef CONFIG_TARGET_SPACEMIT_K1X
 		fastboot_oem_flash_gpt(cmd, fastboot_buf_addr, download_bytes,
 								response, fdev);
 		return;
@@ -661,7 +661,7 @@ void fastboot_mmc_flash_write(const char *cmd, void *download_buffer,
 	}
 #endif
 
-#ifdef CONFIG_SPACEMIT_FLASH
+#ifdef CONFIG_TARGET_SPACEMIT_K1X
 	for (part_index = 0; part_index < MAX_PARTITION_NUM; part_index++){
 		if (fdev->parts_info[part_index].part_name != NULL
 				&& strcmp(cmd, fdev->parts_info[part_index].part_name) == 0){
@@ -750,7 +750,7 @@ void fastboot_mmc_flash_write(const char *cmd, void *download_buffer,
 	} else {
 		write_raw_image(dev_desc, &info, cmd, download_buffer,
 				download_bytes, response);
-#ifdef CONFIG_SPACEMIT_FLASH
+#ifdef CONFIG_TARGET_SPACEMIT_K1X
 		/*if download and flash div to many time, that the crc is not correct*/
 		printf("write_raw_image end\n");
 		// compare_val = crc32_wd(compare_val, (const uchar *)download_buffer, download_bytes, CHUNKSZ_CRC32);

@@ -176,7 +176,7 @@ void fastboot_blk_flash_write(const char *cmd, void *download_buffer,
 {
 	struct blk_desc *dev_desc;
 	struct disk_partition info = {0};
-#ifdef CONFIG_SPACEMIT_FLASH
+#ifdef CONFIG_TARGET_SPACEMIT_K1X
 	static struct flash_dev *fdev = NULL;
 	u32 __maybe_unused fsbl_offset = 0;
 	/*save crc value to compare after flash image*/
@@ -313,7 +313,7 @@ void fastboot_blk_flash_write(const char *cmd, void *download_buffer,
 	} else {
 		write_raw_image(dev_desc, &info, cmd, download_buffer,
 				download_bytes, response);
-#ifdef CONFIG_SPACEMIT_FLASH
+#ifdef CONFIG_TARGET_SPACEMIT_K1X
 		/*if download and flash div to many time, that the crc is not correct*/
 		printf("write_raw_image, \n");
 		// compare_val = crc32_wd(compare_val, (const uchar *)download_buffer, download_bytes, CHUNKSZ_CRC32);

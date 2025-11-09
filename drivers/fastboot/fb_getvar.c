@@ -29,7 +29,7 @@ static void getvar_version_baseband(char *var_parameter, char *response);
 static void getvar_product(char *var_parameter, char *response);
 static void getvar_platform(char *var_parameter, char *response);
 static void getvar_current_slot(char *var_parameter, char *response);
-#if CONFIG_IS_ENABLED(SPACEMIT_FLASH)
+#ifdef CONFIG_TARGET_SPACEMIT_K1X
 static void getvar_mtd_size(char *var_parameter, char *response);
 static void getvar_blk_size(char *var_parameter, char *response);
 #endif
@@ -75,7 +75,7 @@ static const struct {
 	}, {
 		.variable = "platform",
 		.dispatch = getvar_platform
-#if CONFIG_IS_ENABLED(SPACEMIT_FLASH)
+#ifdef CONFIG_TARGET_SPACEMIT_K1X
 	}, {
 		.variable = "mtd-size",
 		.dispatch = getvar_mtd_size
@@ -234,7 +234,7 @@ static void getvar_current_slot(char *var_parameter, char *response)
 	fastboot_okay("a", response);
 }
 
-#if CONFIG_IS_ENABLED(SPACEMIT_FLASH)
+#ifdef CONFIG_TARGET_SPACEMIT_K1X
 /**
  * @brief Get the mtd size and return, if not mtd dev exists, it would return NULL.
 	if there have multi mtd devices, it would only return the first one.
