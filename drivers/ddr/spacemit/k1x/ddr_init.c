@@ -149,12 +149,6 @@ static int spacemit_ddr_probe(struct udevice *dev)
 		pr_info("ddr data rate is configured as %dMT/s\n", ddr_datarate);
 	}
 
-	/* if DDR cs number is NOT configued in eeprom or in dts, use default value */
-	if ((0 == ddr_cs_num) && dev_read_u32u(dev, "cs-num", &ddr_cs_num)) {
-		pr_info("ddr cs number not configed in dts!\n");
-		ddr_cs_num = DDR_CS_NUM;
-	}
-
 	/* if DDR tx odt is NOT configued in eeprom or in dts, use default value */
 	if ((0 == ddr_tx_odt) && dev_read_u32u(dev, "tx-odt", &ddr_tx_odt)) {
 		pr_info("ddr tx odt not configed in dts!\n");

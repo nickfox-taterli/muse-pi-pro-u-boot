@@ -953,7 +953,6 @@ static int spacemit_sdhci_probe(struct udevice *dev)
 #ifdef CONFIG_PINCTRL
 	pinctrl_select_state(host->mmc->dev, "debug");
 #endif
-	pr_info("%s: probe done.\n", host->name);
 	return ret;
 }
 

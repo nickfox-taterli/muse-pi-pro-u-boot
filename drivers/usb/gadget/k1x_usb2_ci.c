@@ -57,22 +57,22 @@
 #define DBG(x...) printf(x)
 #endif
 
-static const char *reqname(unsigned r)
-{
-	switch (r) {
-	case USB_REQ_GET_STATUS: return "GET_STATUS";
-	case USB_REQ_CLEAR_FEATURE: return "CLEAR_FEATURE";
-	case USB_REQ_SET_FEATURE: return "SET_FEATURE";
-	case USB_REQ_SET_ADDRESS: return "SET_ADDRESS";
-	case USB_REQ_GET_DESCRIPTOR: return "GET_DESCRIPTOR";
-	case USB_REQ_SET_DESCRIPTOR: return "SET_DESCRIPTOR";
-	case USB_REQ_GET_CONFIGURATION: return "GET_CONFIGURATION";
-	case USB_REQ_SET_CONFIGURATION: return "SET_CONFIGURATION";
-	case USB_REQ_GET_INTERFACE: return "GET_INTERFACE";
-	case USB_REQ_SET_INTERFACE: return "SET_INTERFACE";
-	default: return "*UNKNOWN*";
-	}
-}
+// static const char *reqname(unsigned r)
+// {
+// 	switch (r) {
+// 	case USB_REQ_GET_STATUS: return "GET_STATUS";
+// 	case USB_REQ_CLEAR_FEATURE: return "CLEAR_FEATURE";
+// 	case USB_REQ_SET_FEATURE: return "SET_FEATURE";
+// 	case USB_REQ_SET_ADDRESS: return "SET_ADDRESS";
+// 	case USB_REQ_GET_DESCRIPTOR: return "GET_DESCRIPTOR";
+// 	case USB_REQ_SET_DESCRIPTOR: return "SET_DESCRIPTOR";
+// 	case USB_REQ_GET_CONFIGURATION: return "GET_CONFIGURATION";
+// 	case USB_REQ_SET_CONFIGURATION: return "SET_CONFIGURATION";
+// 	case USB_REQ_GET_INTERFACE: return "GET_INTERFACE";
+// 	case USB_REQ_SET_INTERFACE: return "SET_INTERFACE";
+// 	default: return "*UNKNOWN*";
+// 	}
+// }
 
 static struct usb_endpoint_descriptor ep0_out_desc = {
 	.bLength = sizeof(struct usb_endpoint_descriptor),
@@ -692,9 +692,9 @@ static void handle_setup(void)
 	mv_invalidate_qh(0);
 	memcpy(&r, head->setup_data, sizeof(struct usb_ctrlrequest));
 	writel(EPT_RX(0), &udc->epsetupstat);
-	pr_info("handle setup %s, 0x%x, 0x%x index 0x%x value 0x%x length 0x%x\n",
-	    reqname(r.bRequest), r.bRequestType, r.bRequest, r.wIndex,
-	    r.wValue, r.wLength);
+	// pr_info("handle setup %s, 0x%x, 0x%x index 0x%x value 0x%x length 0x%x\n",
+	//     reqname(r.bRequest), r.bRequestType, r.bRequest, r.wIndex,
+	//     r.wValue, r.wLength);
 
 	list_del_init(&mv_req->queue);
 	mv_ep->req_primed = false;
@@ -858,7 +858,7 @@ void udc_irq(void)
 		return;
 
 	if (n & STS_SEI){
-		pr_err("-- system error -- \n");
+		DBG("-- system error -- \n");
 	}
 
 	if (n & STS_URI) {
@@ -866,7 +866,7 @@ void udc_irq(void)
 		stop_activity();
 	}
 	if (n & STS_SLI){
-		pr_info("-- suspend --\n");
+		DBG("-- suspend --\n");
 	}
 
 	if (n & STS_PCI) {
@@ -942,7 +942,6 @@ static int mv_pullup(struct usb_gadget *gadget, int is_on)
 	struct mv_udc *udc = (struct mv_udc *)controller.ctrl->hccr;
 	u32 value;
 
-	pr_info("k1xci_udc: pullup %d \n", is_on);
 
 	if (is_on) {
 		/* RESET */
@@ -1058,8 +1057,6 @@ static int mvudc_probe(void)
 		return -ENOMEM;
 	}
 
-	pr_info("k1xci_udc probe\n");
-
 	return 0;
 }
 
@@ -1067,7 +1064,6 @@ void usbphy_init(void)
 {
 	uint32_t loops, temp;
 
-	pr_info("k1xci_udc: phy_init \n");
 	reg32_modify(PMUA_USB_CLK_RES_CTRL, 0, PMUA_USB_CLK_RES_CTRL_USB_AXICLK_EN);
 	reg32_modify(PMUA_USB_CLK_RES_CTRL, PMUA_USB_CLK_RES_CTRL_USB_AXI_RST, 0);
 	reg32_modify(PMUA_USB_CLK_RES_CTRL, 0, PMUA_USB_CLK_RES_CTRL_USB_AXI_RST);

@@ -586,8 +586,6 @@ static int run_main_loop(void)
 #ifdef CONFIG_FASTBOOT_CMD_OEM_READ
 int initialize_console_log_buffer(void)
 {
-	printf("initialize_console_log_buffer\n");
-
 	if (!gd->console_log.buffer) {
 		gd->console_log.buffer = (char *)malloc(LOG_BUFFER_SIZE);
 		if (gd->console_log.buffer) {

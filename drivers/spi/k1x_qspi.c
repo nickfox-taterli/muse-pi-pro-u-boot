@@ -279,8 +279,6 @@ static void qspi_set_func_clk(struct k1x_qspi *qspi)
 	clk_enable(&qspi->clk);
 	clk_enable(&qspi->bus_clk);
 	reset_deassert_bulk(&qspi->resets);
-	dev_info(qspi->dev, "bus clock: %dHz, PMUap reg[0x%08x]:0x%08x\n",
-			qspi->max_hz, qspi->pmuap_reg, readl((void __iomem *)((unsigned long)qspi->pmuap_reg)));
 }
 
 static int qspi_reset(struct k1x_qspi *qspi)
@@ -404,7 +402,7 @@ void qspi_init_ahbread(struct k1x_qspi *qspi, int seq_id)
 
 	/* set AHB read sequence id */
 	qspi_writel(qspi, QSPI_BFGENCR_SEQID(seq_id), qspi->iobase + QSPI_BFGENCR);
-	dev_info(qspi->dev, "AHB buf size: %d\n", qspi->ahb_buf_size);
+	// dev_info(qspi->dev, "AHB buf size: %d\n", qspi->ahb_buf_size);
 }
 
 void qspi_dump_reg(struct k1x_qspi *qspi)
@@ -998,12 +996,6 @@ static int k1x_qspi_ofdata_to_platdata(struct udevice *bus)
 	qspi->endian_xchg = fdtdec_get_int(blob, node, "qspi-little", 0);
 
 	qspi->cs_selected = QSPI_CS_A1;
-
-	dev_info(bus, "qspi iobase:0x%pa, ahb_addr:0x%pa, max_hz:%dHz\n",
-				&iobase, &ahb_addr, qspi->max_hz);
-	dev_info(bus, "rx buf size:%d, tx buf size:%d, ahb buf size=%d\n",
-				qspi->rxfifo, qspi->txfifo, qspi->ahb_buf_size);
-	dev_info(bus, "AHB read %s\n", qspi->ahb_read_enable ? "enabled" : "disabled");
 
 	qspi->tx_unit_size = qspi->txfifo;
 	if (qspi->ahb_read_enable)

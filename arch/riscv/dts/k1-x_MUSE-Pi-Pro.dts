@@ -20,7 +20,6 @@
 	};
 
 	chosen {
-		bootargs = "earlycon=sbi console=ttyS0,115200 debug loglevel=8,initcall_debug=1 rdinit=/init.tmp";
 		stdout-path = "serial0:115200n8";
 	};
 
@@ -57,6 +56,7 @@
 	#size-cells = <0>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_i2c2_0>;
+	clock-frequency = <100000>; 
 	status = "okay";
 
 	eeprom@50{
@@ -72,28 +72,11 @@
 };
 
 &i2c4 {
-	clock-frequency = <400000>;
-	status = "okay";
+	status = "disabled";
 };
 
 &i2c5 {
-	status = "okay";
-	pinctrl-names = "default";
-	pinctrl-0 = <&pinctrl_i2c5_0>;
-
-	raspits-panel@45 {
-		compatible = "raspberrypi,7inch-touchscreen-panel";
-		reg = <0x45>;
-		status = "okay";
-
-		enable-gpios = <&gpio 83 0>;
-
-		port {
-			panel_in_dsi1: endpoint {
-				remote-endpoint = <&dsi_out>;
-			};
-		};
-	};
+	status = "disabled";
 };
 
 &i2c6 {
@@ -216,32 +199,7 @@
 };
 
 &eth0 {
-	status = "okay";
-	pinctrl-names = "default";
-	pinctrl-0 = <&pinctrl_gmac0>;
-
-	phy-reset-pin = <110>;
-
-	clk_tuning_enable;
-	clk-tuning-by-delayline;
-	tx-phase = <90>;
-	rx-phase = <73>;
-
-	phy-mode = "rgmii";
-	phy-addr = <1>;
-	phy-handle = <&rgmii>;
-
-	ref-clock-from-phy;
-
-	mdio {
-		#address-cells = <0x1>;
-		#size-cells = <0x0>;
-		rgmii: phy@0 {
-			compatible = "ethernet-phy-id001c.c916";
-			device_type = "ethernet-phy";
-			reg = <0x1>;
-		};
-	};
+	status = "disabled";
 };
 
 &pcie0_rc {
@@ -274,33 +232,5 @@
 };
 
 &dpu {
-	status = "okay";
-};
-
-&hdmi {
-	pinctrl-names = "default";
-	pinctrl-0 = <&pinctrl_hdmi_0>;
-	status = "okay";
-};
-
-&mipi_dsi {
-	bit-clk = <700000000>;
-	pix-clk = <24000000>;
-	status = "okay";
-
-	ports {
-		mipi_in: port {
-			#address-cells = <1>;
-			#size-cells = <0>;
-			dsi_out: endpoint@1 {
-				reg = <1>;
-				remote-endpoint = <&panel_in_dsi1>;
-			};
-		};
-	};
-};
-
-&panel {
-	force-attached = "lcd_tc358762xbg_dpi";
 	status = "okay";
 };

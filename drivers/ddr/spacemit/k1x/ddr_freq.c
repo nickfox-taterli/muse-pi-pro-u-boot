@@ -101,7 +101,7 @@ enum DCLK_BYPASS_sel {
 #define KHZ			1000
 #define FREQ_MAX		~(0U)
 
-u32 ddr_cs_num = DDR_CS_NUM;
+u32 ddr_cs_num = 1;
 __section(".data") u32 ddr_size;
 const char *ddr_type;
 
@@ -232,7 +232,6 @@ u32 ddr_get_density(void)
 #endif
 
 	ddr_size = cs0_size + cs1_size;
-	pr_info("DDR size = %d MB\n", ddr_size);
 	return ddr_size;
 }
 

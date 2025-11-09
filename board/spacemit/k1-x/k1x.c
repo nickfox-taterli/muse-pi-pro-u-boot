@@ -39,6 +39,7 @@
 #include <fdt_simplefb.h>
 #include <mtd_node.h>
 #include <misc.h>
+#include <hang.h>
 #ifdef CONFIG_ENV_IS_IN_NFS
 #include "nfs_env.h"
 #endif
@@ -302,23 +303,13 @@ void get_ddr_config_info(void)
     /* 计算覆盖范围：去掉 magic(4) + crc32(4) 共 8 字节 */
     calc_crc = crc32(0, (const uchar *)&info->chipid, sizeof(*info) - 8);
 
-    printf("ddr: info_buf=%p, struct_size=%zu\n", info, sizeof(*info));
-    printf("ddr: magic=0x%08x (expect 0x%08x)\n", info->magic, DDR_TRAINING_INFO_MAGIC);
-    printf("ddr: crc stored=0x%08x, calc=0x%08x, span=%zu\n",
-           info->crc32, calc_crc, (size_t)(sizeof(*info) - 8));
-    printf("ddr: chipid=0x%016llx, mac_raw=0x%016llx, version=%u, cs_num(read)=%u\n",
-           (unsigned long long)info->chipid,
-           (unsigned long long)info->mac_addr,
-           info->version, info->cs_num);
-
     if ((DDR_TRAINING_INFO_MAGIC == info->magic) &&
         (info->crc32 == calc_crc)) {
         /* get DDR cs number that is update in spl stage */
         ddr_cs_num = info->cs_num;
-        printf("ddr: training info VALID, use cs_num=%u\n", ddr_cs_num);
     } else {
-        ddr_cs_num = DDR_CS_NUM;
-        printf("ddr: training info INVALID, fallback cs_num=%u\n", ddr_cs_num);
+		// 通常会训练成功,不然都到不了这里,非要到这里那估计是什么严重问题.
+		hang();
     }
 }
 
@@ -746,53 +737,7 @@ void run_cardfirmware_flash_command(void)
 }
 #endif
 
-void setenv_boot_mode(void)
-{
-#ifdef CONFIG_ENV_IS_IN_NFS
-	const char *boot_override = env_get("boot_override");
-
-	if (boot_override) {
-		env_set("boot_device", boot_override);
-		env_set("boot_override", NULL);
-		return;
-	}
-#endif
-
-	u32 boot_mode = get_boot_mode();
-	switch (boot_mode) {
-	case BOOT_MODE_NAND:
-		env_set("boot_device", "nand");
-		break;
-	case BOOT_MODE_NOR:
-		char *blk_name;
-		int blk_index;
-
-		if (get_available_boot_blk_dev(&blk_name, &blk_index)){
-			printf("can not get available blk dev\n");
-			return;
-		}
-
-		env_set("boot_device", "nor");
-		env_set("boot_devnum", simple_itoa(blk_index));
-		break;
-	case BOOT_MODE_EMMC:
-		env_set("boot_device", "mmc");
-		env_set("boot_devnum", simple_itoa(MMC_DEV_EMMC));
-		break;
-	case BOOT_MODE_SD:
-		env_set("boot_device", "mmc");
-		env_set("boot_devnum", simple_itoa(MMC_DEV_SD));
-		break;
-	case BOOT_MODE_USB:
-		// for fastboot image download and run test
-		env_set("bootcmd", CONFIG_BOOTCOMMAND);
-		break;
-	default:
-		env_set("boot_device", "");
-		break;
-	}
-}
-
+#ifdef CONFIG_K1X_SET_ETHADDR
 static void increase_eth_addr(uint8_t *mac_addr)
 {
 	mac_addr[5]++;
@@ -841,7 +786,6 @@ int read_mac_from_tlv(void)
 	return maccount;
 }
 
-#ifdef CONFIG_K1X_SET_ETHADDR
 void set_env_ethaddr(void)
 {
 	uint8_t mac_addr[6];
@@ -851,7 +795,6 @@ void set_env_ethaddr(void)
 	/* Determine source of MAC address and attempt to read it */
 	maccount = read_mac_from_tlv();
 	if (maccount > 0) {
-		pr_info("Found %d valid MAC addresses.\n", maccount);
 		return;
 	}
 
@@ -883,7 +826,6 @@ void set_dev_serial_no(void)
 
 	memset(serial, 0, sizeof(serial));
 	if (get_tlvinfo(TLV_CODE_SERIAL_NUMBER, serial, sizeof(serial)) > 0) {
-		pr_info("Serial number is valid.\n");
 		env_set("serial#", serial);
 	}
 }
@@ -1002,11 +944,6 @@ int board_init(void)
 
 int board_late_init(void)
 {
-	ulong kernel_start;
-	ofnode chosen_node;
-	char ram_size_str[16] = {"\0"};
-	int ret;
-
 #ifdef CONFIG_K1X_SET_PRODUCT_NAME
 	// it MAY be NULL when did NOT load build-in env and eeprom is empty
 	if (NULL == env_get("product_name"))
@@ -1072,28 +1009,6 @@ int board_late_init(void)
 	/*import env.txt from bootfs*/
 	import_env_from_bootfs();
 #endif
-
-	setenv_boot_mode();
-
-	/*save ram size to env, transfer to MB*/
-	sprintf(ram_size_str, "mem=%dMB", (int)(gd->ram_size / SZ_1MB));
-	env_set("ram_size", ram_size_str);
-
-	chosen_node = ofnode_path("/chosen");
-	if (!ofnode_valid(chosen_node)) {
-		pr_debug("No chosen node found, can't get kernel start address\n");
-		return 0;
-	}
-
-	ret = ofnode_read_u64(chosen_node, "riscv,kernel-start",
-				  (u64 *)&kernel_start);
-	if (ret) {
-		pr_debug("Can't find kernel start address in device tree\n");
-		return 0;
-	}
-
-	env_set_hex("kernel_start", kernel_start);
-
 	return 0;
 }
 
@@ -1311,182 +1226,8 @@ static int ft_board_cpu_fixup(void *blob, struct bd_info *bd)
 	return 0;
 }
 
-static int ft_board_info_fixup(void *blob, struct bd_info *bd)
-{
-	int node;
-	const char *part_number;
-
-	node = fdt_path_offset(blob, "/");
-	if (node < 0) {
-		pr_err("Can't find root node!\n");
-		return -EINVAL;
-	}
-
-	part_number = env_get("part#");
-	if (NULL != part_number)
-		fdt_setprop(blob, node, "part-number", part_number, strlen(part_number));
-
-	return 0;
-}
-
-static int ft_board_mac_addr_fixup(void *blob, struct bd_info *bd)
-{
-	int node, i;
-	const char *addr_value;
-	// char addr_str[ARP_HLEN_ASCII + 1];
-	const char *mac_item[] = {"wifi_addr", "bt_addr"};
-
-	node = fdt_path_offset(blob, "/soc");
-	if (node < 0) {
-		pr_err("Can't find soc node!\n");
-		return -EINVAL;
-	}
-
-	for (i = 0; i < ARRAY_SIZE(mac_item); i++) {
-		addr_value = env_get(mac_item[i]);
-		if (NULL != addr_value) {
-			// memset(addr_str, 0, sizeof(addr_str));
-			// sprintf(addr_str, "%pM", addr_value);
-			fdt_setprop(blob, node, mac_item[i], addr_value, strlen(addr_value));
-		}
-	}
-
-	return 0;
-}
-
 int ft_board_setup(void *blob, struct bd_info *bd)
 {
-	static const struct node_info nodes[] = {
-		{ "spacemit,k1x-qspi", MTD_DEV_TYPE_NOR, },  /* SPI flash */
-	};
-
-	/* update MTD partition info for nor boot */
-	if (CONFIG_IS_ENABLED(FDT_FIXUP_PARTITIONS) &&
-		BOOT_MODE_NOR == get_boot_mode())
-		fdt_fixup_mtdparts(blob, nodes, ARRAY_SIZE(nodes));
-
-#if CONFIG_IS_ENABLED(DM_VIDEO) && CONFIG_IS_ENABLED(FDT_SIMPLEFB)
-	{
-		struct fdt_memory mem;
-		
-		/* reserved with no-map tag the video buffer */
-		mem.start = gd->video_bottom;
-		mem.end = gd->video_top - 1;
-
-		fdtdec_add_reserved_memory(blob, "framebuffer", &mem, NULL, 0, NULL, 0);
-	}
-#endif
-
 	ft_board_cpu_fixup(blob, bd);
-	ft_board_info_fixup(blob, bd);
-	ft_board_mac_addr_fixup(blob, bd);
 	return 0;
-}
-
-static bool has_bootarg(const char *args, const char *param, size_t param_len)
-{
-	const char *p = args;
-
-	if (!args || !param || !param_len)
-		return false;
-
-	// Iterate through all parameters in args
-	while (*p) {
-		// Skip spaces
-		while (*p == ' ')
-			p++;
-		if (!*p)
-			break;
-
-		// Check if current parameter matches
-		if (strncmp(p, param, param_len) == 0 &&
-			(p[param_len] == '\0' || p[param_len] == ' ' || p[param_len] == '=')) {
-			return true;
-		}
-
-		// Move to next parameter
-		while (*p && *p != ' ')
-			p++;
-	}
-	return false;
-}
-
-char *board_fdt_chosen_bootargs(void)
-{
-	const void *fdt;
-	const char *env_args = env_get("bootargs");
-	const char *dts_args = NULL;
-	char *merged = NULL;
-	int nodeoffset;
-
-	fdt = (void *)env_get_hex("fdt_addr", 0);
-	if (!fdt) {
-		return (char *)env_args;
-	}
-
-	if (fdt_check_header(fdt)) {
-		pr_err("Invalid kernel DTB\n");
-		return (char *)env_args;
-	}
-
-	nodeoffset = fdt_path_offset(fdt, "/chosen");
-	if (nodeoffset >= 0)
-		dts_args = fdt_getprop(fdt, nodeoffset, "bootargs", NULL);
-
-	// Print env bootargs
-	pr_debug("Env bootargs:\n    %s\n", env_args ? env_args : "NULL");
-	// Print DTS bootargs
-	pr_debug("DTS bootargs:\n    %s\n", dts_args ? dts_args : "NULL");
-
-	if (!dts_args)
-		return (char *)env_args;
-
-	size_t total_len = 1;
-	if (env_args)
-		total_len += strlen(env_args);
-	if (dts_args)
-		total_len += strlen(dts_args) + 1;
-
-	merged = calloc(1, total_len);
-	if (!merged) {
-		pr_err("Memory allocation failed\n");
-		return NULL;
-	}
-
-	if (env_args)
-		strcpy(merged, env_args);
-
-	const char *p = dts_args;
-	bool need_space = (merged[0] != '\0');
-
-	while (p && *p) {
-		while (*p && *p == ' ')
-			p++;
-		if (!*p)
-			break;
-
-		const char *end = p;
-		while (*end && *end != ' ')
-			end++;
-
-		size_t param_len;
-		const char *eq = memchr(p, '=', end - p);
-		param_len = eq ? (size_t)(eq - p) : (size_t)(end - p);
-
-		if (!has_bootarg(env_args, p, param_len)) {
-			if (need_space)
-				strcat(merged, " ");
-			strncat(merged, p, end - p);
-			need_space = true;
-		}
-
-		p = end;
-	}
-
-	if (!merged[0]) {
-		free(merged);
-		merged = NULL;
-	}
-
-	return merged;
 }

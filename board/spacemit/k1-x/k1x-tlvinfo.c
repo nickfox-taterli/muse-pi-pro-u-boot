@@ -282,6 +282,7 @@ bool tlvinfo_delete_tlv(u8* tlv_data, u8 code)
 
 int set_tlvinfo(int tcode, char* val)
 {
+#ifdef CONFIG_CMD_TLV_EEPROM
 	/*init tlvinfo at first*/
 	if (init_tlvinfo()) {
 		pr_err("init tlv info fail\n");
@@ -289,10 +290,13 @@ int set_tlvinfo(int tcode, char* val)
 	}
 
 	tlvinfo_delete_tlv(tlvinfo_buffer, tcode);
+
 	if ((val != NULL) && tlvinfo_add_tlv(tlvinfo_buffer, tcode, val))
 		return 0;
 
 	return -1;
+#endif
+	return 0;
 }
 
 int flush_tlvinfo(void)

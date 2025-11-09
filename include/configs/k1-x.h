@@ -49,8 +49,6 @@
 #define DDR_TRAINING_INFO_MAGIC	(0x54524444)
 // ddr training software version: xx.xx.xxxx
 #define DDR_TRAINING_INFO_VER	(0x00010000)
-// default ddr channel number
-#define DDR_CS_NUM	(1)
 
 /*
  use (ram_base+4MB offset) as the address to loading image.

@@ -110,3 +110,4 @@ __pycache__
 # pylint files
 /pylint.cur
 /pylint.out/
+compile_commands.json

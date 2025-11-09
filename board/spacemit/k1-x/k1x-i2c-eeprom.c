@@ -44,11 +44,13 @@ struct eeprom_config {
 	uint32_t sda_pin_reg;
 };
 
-const struct eeprom_config eeprom_info[] = {
-	// eeprom @deb1 & deb2: I2C2, pin group(GPIO_84, GPIO_85)
-	{2, 0x50, MUX_MODE4, 0xd401e154, 0xd401e158},
-	// eeprom @evb: I2C6, pin group(GPIO_118, GPIO_119)
-	{6, 0x50, MUX_MODE2, 0xd401e228, 0xd401e22c},
+static const struct eeprom_config eeprom_info = {
+    /* eeprom @deb1 & deb2: I2C2, pin group(GPIO_84, GPIO_85) */
+    .bus          = 2,
+    .addr         = 0x50,
+    .pin_function = MUX_MODE4,
+    .scl_pin_reg  = 0xd401e154,
+    .sda_pin_reg  = 0xd401e158,
 };
 
 static void init_tlv_data(uint8_t chip, uint8_t *buffer, uint32_t size)
@@ -66,43 +68,14 @@ static void init_tlv_data(uint8_t chip, uint8_t *buffer, uint32_t size)
 	_read_from_i2c(chip, offset, be16_to_cpu(hdr->totallen), buffer + offset);
 }
 
-static void i2c_set_pinctrl(uint32_t value, uint32_t reg_addr)
-{
-	writel(value, (void __iomem *)(size_t)reg_addr);
-}
-
-static uint32_t i2c_get_pinctrl(uint32_t reg_addr)
-{
-	return readl((void __iomem *)(size_t)reg_addr);
-}
-
 int init_tlv_from_eeprom(uint8_t *tlv_data, uint32_t tlv_size)
 {
-	int saddr, i;
-	uint8_t bus;
-	uint32_t scl_pin_backup, sda_pin_backup;
+	const uint32_t pinval = I2C_PIN_CONFIG(eeprom_info.pin_function);
 
-	for (i = 0; i < ARRAY_SIZE(eeprom_info); i++) {
-		bus = eeprom_info[i].bus;
-		saddr = eeprom_info[i].addr;
+    writel(pinval, (void __iomem *)(uintptr_t)eeprom_info.scl_pin_reg);
+    writel(pinval, (void __iomem *)(uintptr_t)eeprom_info.sda_pin_reg);
 
-		scl_pin_backup = i2c_get_pinctrl(eeprom_info[i].scl_pin_reg);;
-		sda_pin_backup = i2c_get_pinctrl(eeprom_info[i].sda_pin_reg);;
-		i2c_set_pinctrl(I2C_PIN_CONFIG(eeprom_info[i].pin_function), eeprom_info[i].scl_pin_reg);
-		i2c_set_pinctrl(I2C_PIN_CONFIG(eeprom_info[i].pin_function), eeprom_info[i].sda_pin_reg);
-
-		if ((i2c_set_bus_num(bus) < 0) || (i2c_probe(saddr) < 0)) {
-			pr_err("%s: probe i2c(%d) @eeprom %d failed\n", __func__, bus, saddr);
-			i2c_set_pinctrl(scl_pin_backup, eeprom_info[i].scl_pin_reg);
-			i2c_set_pinctrl(sda_pin_backup, eeprom_info[i].sda_pin_reg);
-		}
-		else {
-			pr_info("find eeprom in bus %d, address %d\n", bus, saddr);
-			init_tlv_data(saddr, tlv_data, tlv_size);
-			return tlv_size;
-		}
-	}
-
+	init_tlv_data(eeprom_info.addr, tlv_data, tlv_size);
 	return -EINVAL;
 }
 
